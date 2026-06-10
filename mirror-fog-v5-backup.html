@@ -12,6 +12,34 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* ── POP MART Logo ── */
+  .pm-header {
+    position: fixed; top: 12px; left: 12px; z-index: 9999;
+    display: flex; align-items: center; gap: 8px; pointer-events: none;
+  }
+  .pm-logo-box {
+    background: #E4002B; border-radius: 4px; padding: 4px 10px;
+  }
+  .pm-logo-text {
+    color: #fff; font-size: 13px; font-weight: 900;
+    font-family: Arial, Helvetica, sans-serif; letter-spacing: 1px; line-height: 1.2;
+  }
+  .pm-molly-text {
+    color: #fff; font-size: 15px; font-weight: 900;
+    font-family: Arial, Helvetica, sans-serif;
+    text-shadow: 0 0 6px rgba(255,255,255,0.5);
+  }
+  .pm-footer {
+    position: fixed; bottom: 12px; left: 12px; z-index: 9999;
+    display: flex; align-items: center; gap: 6px; pointer-events: none;
+  }
+  .pm-dots { display: flex; gap: 3px; align-items: center; }
+  .pm-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .pm-copyright {
+    color: #999; font-size: 10px;
+    font-family: Arial, Helvetica, sans-serif; letter-spacing: 0.5px;
+  }
+
   :root {
     --comic-red: #e63946;
     --comic-orange: #f77f00;
@@ -422,6 +450,22 @@
 <link rel="prefetch" href="sticker3.png" as="image">
 </head>
 <body>
+
+<!-- ── POP MART Logo (左上) ── -->
+<div class="pm-header">
+  <div class="pm-logo-box"><span class="pm-logo-text">POP MART</span></div>
+  <span class="pm-molly-text">Molly</span>
+</div>
+
+<!-- ── POP MART 版权 (左下) ── -->
+<div class="pm-footer">
+  <span class="pm-dots">
+    <span class="pm-dot" style="background:#999;"></span>
+    <span class="pm-dot" style="background:#E4002B;"></span>
+    <span class="pm-dot" style="background:#999;"></span>
+  </span>
+  <span class="pm-copyright">&copy;POP MART</span>
+</div>
 
 <!-- 预加载主页面图片，加速返回时加载 -->
 <div style="display:none" aria-hidden="true">
