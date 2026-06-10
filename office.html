@@ -689,6 +689,36 @@
             transform: translateY(0);
             box-shadow: 1px 1px 0px rgba(0,0,0,0.12);
         }
+
+        /* ── 物件引导箭头+文字 ── */
+        .object-hint {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 60;
+            pointer-events: none;
+            animation: hintPulse 1.5s ease-in-out infinite;
+        }
+        .object-hint .arrow {
+            font-size: 22px;
+            color: #f5f0e0;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+            line-height: 1;
+        }
+        .object-hint .hint-label {
+            font-size: 14px;
+            font-weight: 900;
+            color: #f5f0e0;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+            white-space: nowrap;
+        }
+        @keyframes hintPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.45; }
+        }
+
     </style>
 <link rel="prefetch" href="retro_oil_bg.jpg" as="image">
 <link rel="prefetch" href="molly_avatar.png" as="image">
@@ -723,6 +753,25 @@
       <img src="sticker3.png" alt="">
     </div>
     <div class="phone-frame">
+
+            <!-- 物件引导提示 -->
+            <div class="object-hint" id="hint-laptop" style="top:285px; left:50%; transform:translateX(-50%);">
+                <span class="arrow">↓</span>
+                <span class="hint-label">点击电脑继续吐槽</span>
+            </div>
+            <div class="object-hint" id="hint-phone" style="display:none; bottom:140px; left:50px;">
+                <span class="arrow">↓</span>
+                <span class="hint-label">点击手机继续吐槽</span>
+            </div>
+            <div class="object-hint" id="hint-sticky-todo" style="top:28px; left:128px;">
+                <span class="arrow">←</span>
+                <span class="hint-label">点击看看今天的待办事项</span>
+            </div>
+            <div class="object-hint" id="hint-sticky-relax" style="top:56px; left:128px;">
+                <span class="arrow">←</span>
+                <span class="hint-label">点击放松一下</span>
+            </div>
+
         <!-- 返回按钮 -->
         <a class="back-btn" href="main.html?from=subpage" title="返回">&larr;</a>
         <span class="back-hint">点我返回</span>
@@ -952,6 +1001,19 @@
             choicePopup.classList.add('active');
         }
 
+
+        // ── 办公室引导提示状态管理 ──
+        var officeHintState = { laptop: false, phone: false, sticky: false };
+        function updateHints() {
+            // 电脑未点击 → 显示电脑提示
+            document.getElementById('hint-laptop').style.display = officeHintState.laptop ? 'none' : 'flex';
+            // 电脑点击后 + 手机未点击 → 显示手机提示
+            document.getElementById('hint-phone').style.display = (officeHintState.laptop && !officeHintState.phone) ? 'flex' : 'none';
+            // 便利贴提示：点击后消失
+            document.getElementById('hint-sticky-todo').style.display = officeHintState.sticky ? 'none' : 'flex';
+            document.getElementById('hint-sticky-relax').style.display = officeHintState.sticky ? 'none' : 'flex';
+        }
+
         // 物件点击事件
         function handleClick(name) {
             var el = event.currentTarget;
@@ -959,15 +1021,19 @@
             setTimeout(function() { el.classList.remove('clicked'); }, 300);
 
             if (name === '笔记本电脑') {
+            officeHintState.laptop = true; updateHints();
+            officeHintState.laptop = true; updateHints();
                 showChoicePopup(
                     '策划案抓紧完善，下班前发我邮箱。',
-                    '我不干了！这工作谁想上谁上吧！',
-                    '好的老板，今天下班准时给你。',
+                    'Molly助攻：我不干了……',
+                    '胆小的我：好的老板……',
                     function() { soundCelebrate(); },
                     function() { soundClick(); }
                 );
             }
             else if (name === '便利贴') {
+            officeHintState.sticky = true; updateHints();
+            officeHintState.sticky = true; updateHints();
                 soundClick();
                 showTextBubble('item-sticky', '房租需缴费，核对水电账单。');
             }
@@ -976,6 +1042,8 @@
                 showTextBubble('item-plant', '别一直紧绷，抽空放空片刻。');
             }
             else if (name === '智能手机') {
+            officeHintState.phone = true; updateHints();
+            officeHintState.phone = true; updateHints();
                 showChoicePopup(
                     '好久没回家，什么时候有空回来？',
                     '我这次过节又不能回去了，有工作。',
