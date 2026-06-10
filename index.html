@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Angry Molly Original Fire XL - Comic Loading</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  background: #0A0A0A;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+#canvas { display: block; image-rendering: pixelated; }
+
+/* 返回主页面后的文字跳动动画 */
+.return-bounce-text {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 100;
+  font-family: "Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive;
+  font-size: clamp(24px, 5vw, 36px);
+  font-weight: bold;
+  color: #ffe066;
+  text-shadow:
+    -3px -3px 0 #000, 3px -3px 0 #000,
+    -3px 3px 0 #000, 3px 3px 0 #000,
+    0 0 20px rgba(255,224,48,0.5);
+  text-align: center;
+  line-height: 1.8;
+  pointer-events: none;
+  opacity: 0;
+}
+.return-bounce-text.show {
+  animation: textJumpIn 1.8s ease forwards;
+}
+@keyframes textJumpIn {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
+  25% { transform: translate(-50%, -50%) scale(0.9); }
+  35% { transform: translate(-50%, -50%) scale(1.1); }
+  45% { transform: translate(-50%, -50%) scale(0.95); }
+  55% { transform: translate(-50%, -50%) scale(1.03); }
+  65% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+
+<!-- 返回文字跳动 -->
+<div class="return-bounce-text" id="returnBounceText">做得很好！<br>继续探索吧~</div>
+<script>
+// ── Simple audio system ──
+var audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ audioCtx = null; } }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// ── "Biu" sound — laser/whoosh effect ──
+function soundBiu() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var t = ctx.currentTime;
+  // Main "biu": high-frequency sliding tone
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(2000, t);
+  osc.frequency.exponentialRampToValueAtTime(500, t + 0.12);
+  gain.gain.setValueAtTime(0.18, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.18);
+  // "Whoosh" noise burst
+  setTimeout(function() {
+    var buf = ctx.createBuffer(1, ctx.sampleRate * 0.06, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < data.length; i++) {
+      data[i] = (Math.random() - 0.5) * Math.pow(1 - i / data.length, 2.5) * 0.25;
+    }
+    var src2 = ctx.createBufferSource(); src2.buffer = buf;
+    var g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.05, ctx.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    var hp = ctx.createBiquadFilter();
+    hp.type = 'bandpass';
+    hp.frequency.setValueAtTime(3000, ctx.currentTime);
+    hp.Q.setValueAtTime(2, ctx.currentTime);
+    src2.connect(hp); hp.connect(g2); g2.connect(ctx.destination);
+    src2.start(); src2.stop(ctx.currentTime + 0.1);
+  }, 20);
+}
+
+function soundComplete() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  [523, 659, 784].forEach(function(f, i) {
+    var osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'triangle'; osc.frequency.setValueAtTime(f, ctx.currentTime + i * 0.12);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.12);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + i * 0.12 + 0.4);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + i * 0.12); osc.stop(ctx.currentTime + i * 0.12 + 0.5);
+  });
+  // Biu sound on complete too
+  setTimeout(function() { soundBiu(); }, 200);
+}
+// ═══════════════════════════════════════════════════
+// ANGRY MOLLY ORIGINAL FIRE XL
+// American Retro Comic Style - 5.5s Seamless Loop
+// 1080×1920 | 24fps | 132 frames total
+// ═══════════════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = 1080, H = 1920;
+canvas.width = W; canvas.height = H;
+
+// ── Mode Detection: loading (default) vs message (from main.html sticker1) ──
+var urlParams = new URLSearchParams(window.location.search);
+var pageMode = urlParams.get('mode') || 'loading'; // 'loading' | 'message'
+
+// ── Message Mode State ──
+var msgText = '不要怀疑自己，你值得被爱';
+var msgStartTime = null;       // when message animation started
+var msgPhase = 'fadein';      // fadein → hold → fadeout
+var msgAlpha = 0;             // current text alpha (0→1→1→0)
+var msgRedirectDelay = 2500;   // hold duration before redirect (ms)
+var msgTotalDuration = 3500;  // total time before redirect (ms)
+var msgRedirected = false;    // flag to prevent double redirect
+
+function resize() {
+  const r = W / H;
+  let vw = window.innerWidth, vh = window.innerHeight;
+  if (vw / vh > r) { vw = vh * r; } else { vh = vw / r; }
+  canvas.style.width = vw + 'px';
+  canvas.style.height = vh + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Comic Color Palette (Pop Art / High Contrast) ──
+const C = {
+  bg: '#E82020',          // bright red packaging base
+  black: '#0A0A0A',
+  ink: '#000000',
+  white: '#FFFFFF',
+  cream: '#FFF5D0',       // cream-yellow text
+  yellow: '#FFE030',      // pop yellow
+  orangeY: '#FFAA20',     // orange-yellow
+  orange: '#FF5510',      // orange-red
+  deepRed: '#CC1020',     // deep red outer flame
+  brightYellow: '#FFEE44', // bright yellow core
+  blue: '#2288CC',        // XL badge blue
+  blueDark: '#114477',
+  skin: '#F4C59A',
+  hair: '#FFE030',
+  dress: '#E82020',
+  beret: '#22B8CC',
+  eye: '#18BCAC',
+};
+
+// ── Animation Config ──
+let animTime = 0;
+let flameReady = true;
+let clickCount = 0;           // click counter
+const MAX_CLICKS = 10;         // navigate after 10 clicks
+let progressTarget = 0;        // target progress (0-1)
+let progressCurrent = 0;       // current animated progress (0-1)
+let screenShakeX = 0;         // screen shake on click
+let screenShakeY = 0;
+let screenShakeDecay = 0;      // shake decay timer
+
+// ── Click Flame Effects ──
+const clickFlames = [];        // { x, y, born, scale, phrase }
+const FLAME_PHRASES = [
+  '\u5927\u80c6\u8bf4\u51fa\u5fc3\u91cc\u8bdd\uff01',
+  '\u751f\u6c14\u4e5f\u6ca1\u5173\u7cfb\u7684',
+  '\u5c31\u8981\u505a\u6700\u771f\u5b9e\u7684\u81ea\u5df1',
+  '\u522b\u628a\u60c5\u7eea\u85cf\u8d77\u6765',
+  '\u4e0d\u723d\u5c31\u76f4\u63a5\u8868\u8fbe'
+];
+
+function addClickFlame(x, y) {
+  const phrase = FLAME_PHRASES[Math.floor(Math.random() * FLAME_PHRASES.length)];
+  clickFlames.push({ x, y, born: Date.now(), scale: 0.25 + Math.random() * 0.45, phrase: phrase });
+  // Screen shake
+  screenShakeX = (Math.random() - 0.5) * 20;
+  screenShakeY = (Math.random() - 0.5) * 20;
+  screenShakeDecay = 1.0;
+}
+
+function drawClickFlames(ctx, t) {
+  const now = Date.now();
+  for (let i = clickFlames.length - 1; i >= 0; i--) {
+    const cf = clickFlames[i];
+    const age = (now - cf.born) / 1000; // seconds
+    if (age > 3.0) { clickFlames.splice(i, 1); continue; } // remove after 3.0s
+
+    const alpha = age < 0.25 ? age / 0.25 : Math.max(0, 1 - (age - 0.25) / 2.75);
+    const flickerX = Math.sin(t * 40 + i * 7) * 3;
+    const flickerY = Math.cos(t * 35 + i * 5) * 2;
+
+    drawComicFlame(ctx, cf.x + flickerX, cf.y + flickerY, cf.scale, alpha * 0.9, 0, flickerX * 0.3, flickerY * 0.3);
+
+    // Draw phrase above the flame (text stays fixed, flame moves)
+    if (cf.phrase && age > 0.15 && age < 2.5) {
+      const txtAlpha = age < 0.4 ? (age - 0.15) / 0.25 : (age > 2.0 ? Math.max(0, 1 - (age - 2.0) / 0.5) : 1);
+      ctx.save();
+      ctx.globalAlpha = alpha * txtAlpha;
+      // Text fixed at click position, no flicker shake
+      const tx = cf.x;
+      const ty = cf.y - cf.scale * 200 - 30;
+      drawSmallComicText(ctx, cf.phrase, tx, ty, 46, C.cream, 4.5, '"Comic Sans MS", "Varela Round", "Nunito", "Arial Rounded MT Bold", sans-serif');
+      ctx.restore();
+    }
+  }
+}
+
+// ── Preload Halftone Face Image ──
+const faceImg = new Image();
+faceImg.src = 'angry_molly_face_halftone.png';
+
+// ── Easing ──
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeOut(t) { return 1 - Math.pow(1 - t, 2.5); }
+function easeIn(t) { return t * t; }
+function easeInOut(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2; }
+function phaseT(f, s, e) { return clamp((f - s) / (e - s), 0, 1); }
+
+// ── Halftone Dot Pattern ──
+function drawHalftone(ctx, x, y, w, h, dotSize, spacing, alpha, color) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  for (let ry = y; ry < y + h; ry += spacing) {
+    const rowOff = ((ry - y) / spacing) % 2 === 0 ? 0 : spacing * 0.5;
+    for (let rx = x + rowOff; rx < x + w; rx += spacing) {
+      ctx.beginPath();
+      ctx.arc(rx, ry, dotSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+// ── Gritty Noise Texture ──
+function drawNoise(ctx, x, y, w, h, alpha, density) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  for (let i = 0; i < density; i++) {
+    const nx = x + Math.random() * w;
+    const ny = y + Math.random() * h;
+    const v = Math.random() > 0.5 ? 255 : 0;
+    ctx.fillStyle = `rgb(${v},${v},${v})`;
+    ctx.fillRect(nx, ny, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+  ctx.restore();
+}
+
+// ── Comic Ink Outline Style ──
+function setInkStroke(ctx, width) {
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+}
+
+// ── Bold Text with Comic Outline ──
+function drawComicText(ctx, text, x, y, fontSize, fontColor, outlineWidth, fontFamily = 'Impact, "Arial Black", sans-serif') {
+  ctx.save();
+  ctx.font = fontSize + 'px ' + fontFamily;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  // thick black outline
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = outlineWidth;
+  ctx.strokeText(text, x, y);
+  // white inner outline for pop
+  ctx.strokeStyle = C.white;
+  ctx.lineWidth = outlineWidth * 0.35;
+  ctx.strokeText(text, x, y);
+  // fill
+  ctx.fillStyle = fontColor;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+// ── Small Comic Text (no inner white stroke) ──
+function drawSmallComicText(ctx, text, x, y, fontSize, fontColor, outlineWidth, fontFamily) {
+  ctx.save();
+  ctx.font = `bold ${fontSize}px ${fontFamily || '"Arial Black", Arial, sans-serif'}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = outlineWidth;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fontColor;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+// ── Flame Path (based on reference image) ──
+// Creates the classic American comic flame silhouette
+function flamePath(ctx, cx, cy, scale) {
+  const s = scale;
+  ctx.beginPath();
+  // Start at bottom left
+  ctx.moveTo(cx - 140*s, cy + 160*s);
+  // Bottom curve to right
+  ctx.bezierCurveTo(
+    cx - 60*s, cy + 190*s,
+    cx + 60*s, cy + 190*s,
+    cx + 140*s, cy + 160*s
+  );
+  // Right side upward - outer flame
+  ctx.bezierCurveTo(
+    cx + 170*s, cy + 80*s,
+    cx + 130*s, cy - 40*s,
+    cx + 70*s, cy - 130*s
+  );
+  // Right inner curl
+  ctx.bezierCurveTo(
+    cx + 90*s, cy - 60*s,
+    cx + 80*s, cy + 20*s,
+    cx + 40*s, cy + 80*s
+  );
+  // Center upward tongue
+  ctx.bezierCurveTo(
+    cx + 35*s, cy + 40*s,
+    cx + 25*s, cy - 60*s,
+    cx + 5*s, cy - 180*s
+  );
+  // Center top curl back
+  ctx.bezierCurveTo(
+    cx - 5*s, cy - 120*s,
+    cx - 10*s, cy - 40*s,
+    cx - 5*s, cy + 40*s
+  );
+  // Left inner flame
+  ctx.bezierCurveTo(
+    cx - 35*s, cy - 20*s,
+    cx - 60*s, cy - 100*s,
+    cx - 90*s, cy - 150*s
+  );
+  // Left outer curl down
+  ctx.bezierCurveTo(
+    cx - 100*s, cy - 60*s,
+    cx - 150*s, cy + 20*s,
+    cx - 140*s, cy + 160*s
+  );
+  ctx.closePath();
+}
+
+// ── Inner Flame Path (smaller, for layering) ──
+function innerFlamePath1(ctx, cx, cy, scale) {
+  const s = scale;
+  ctx.beginPath();
+  ctx.moveTo(cx - 95*s, cy + 130*s);
+  ctx.bezierCurveTo(cx - 40*s, cy + 155*s, cx + 40*s, cy + 155*s, cx + 95*s, cy + 130*s);
+  ctx.bezierCurveTo(cx + 115*s, cy + 60*s, cx + 85*s, cy - 20*s, cx + 45*s, cy - 90*s);
+  ctx.bezierCurveTo(cx + 50*s, cy - 40*s, cx + 35*s, cy + 40*s, cx + 10*s, cy + 60*s);
+  ctx.bezierCurveTo(cx + 5*s, cy + 10*s, cx - 5*s, cy - 80*s, cx - 15*s, cy - 140*s);
+  ctx.bezierCurveTo(cx - 20*s, cy - 80*s, cx - 25*s, cy - 10*s, cx - 10*s, cy + 50*s);
+  ctx.bezierCurveTo(cx - 35*s, cy + 20*s, cx - 55*s, cy - 60*s, cx - 75*s, cy - 100*s);
+  ctx.bezierCurveTo(cx - 85*s, cy - 30*s, cx - 115*s, cy + 40*s, cx - 95*s, cy + 130*s);
+  ctx.closePath();
+}
+
+function innerFlamePath2(ctx, cx, cy, scale) {
+  const s = scale;
+  ctx.beginPath();
+  ctx.moveTo(cx - 60*s, cy + 100*s);
+  ctx.bezierCurveTo(cx - 25*s, cy + 120*s, cx + 25*s, cy + 120*s, cx + 60*s, cy + 100*s);
+  ctx.bezierCurveTo(cx + 70*s, cy + 50*s, cx + 50*s, cy - 10*s, cx + 25*s, cy - 60*s);
+  ctx.bezierCurveTo(cx + 20*s, cy - 20*s, cx + 10*s, cy + 30*s, cx + 5*s, cy + 45*s);
+  ctx.bezierCurveTo(cx + 0*s, cy + 5*s, cx - 5*s, cy - 50*s, cx - 10*s, cy - 100*s);
+  ctx.bezierCurveTo(cx - 15*s, cy - 50*s, cx - 15*s, cy - 5*s, cx - 5*s, cy + 35*s);
+  ctx.bezierCurveTo(cx - 25*s, cy + 10*s, cx - 35*s, cy - 40*s, cx - 50*s, cy - 70*s);
+  ctx.bezierCurveTo(cx - 55*s, cy - 20*s, cx - 75*s, cy + 40*s, cx - 60*s, cy + 100*s);
+  ctx.closePath();
+}
+
+function innerFlamePath3(ctx, cx, cy, scale) {
+  const s = scale;
+  ctx.beginPath();
+  ctx.moveTo(cx - 30*s, cy + 70*s);
+  ctx.bezierCurveTo(cx - 10*s, cy + 85*s, cx + 10*s, cy + 85*s, cx + 30*s, cy + 70*s);
+  ctx.bezierCurveTo(cx + 35*s, cy + 35*s, cx + 22*s, cy - 5*s, cx + 8*s, cy - 40*s);
+  ctx.bezierCurveTo(cx + 5*s, cy - 10*s, cx + 2*s, cy + 20*s, cx + 0*s, cy + 30*s);
+  ctx.bezierCurveTo(cx - 2*s, cy + 0*s, cx - 5*s, cy - 30*s, cx - 8*s, cy - 60*s);
+  ctx.bezierCurveTo(cx - 12*s, cy - 30*s, cx - 10*s, cy + 5*s, cx - 2*s, cy + 25*s);
+  ctx.bezierCurveTo(cx - 15*s, cy + 5*s, cx - 22*s, cy - 25*s, cx - 28*s, cy - 45*s);
+  ctx.bezierCurveTo(cx - 32*s, cy - 10*s, cx - 40*s, cy + 30*s, cx - 30*s, cy + 70*s);
+  ctx.closePath();
+}
+
+// ── Spark Fragment Paths ──
+function sparkPath(ctx, cx, cy, scale) {
+  const s = scale;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 12*s);
+  ctx.quadraticCurveTo(cx + 6*s, cy - 6*s, cx + 6*s, cy);
+  ctx.quadraticCurveTo(cx + 6*s, cy + 6*s, cx, cy + 12*s);
+  ctx.quadraticCurveTo(cx - 6*s, cy + 6*s, cx - 6*s, cy);
+  ctx.quadraticCurveTo(cx - 6*s, cy - 6*s, cx, cy - 12*s);
+  ctx.closePath();
+}
+
+// ── Draw Spark Fragments (6 scattered pieces) ──
+function drawSparks(ctx, cx, cy, scale, alpha, shakeX, shakeY) {
+  const sparks = [
+    { dx: -170, dy: -120, sc: 0.9, rot: 0.3 },
+    { dx: 165, dy: -90, sc: 1.1, rot: -0.5 },
+    { dx: 185, dy: 40, sc: 0.7, rot: 0.8 },
+    { dx: -195, dy: 60, sc: 0.8, rot: -0.2 },
+    { dx: 140, dy: 140, sc: 0.6, rot: 0.6 },
+    { dx: -150, dy: 150, sc: 0.5, rot: -0.7 },
+  ];
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  sparks.forEach(sp => {
+    ctx.save();
+    ctx.translate(cx + sp.dx * scale + shakeX, cy + sp.dy * scale + shakeY);
+    ctx.rotate(sp.rot + Math.sin(animTime * 4 + sp.dx) * 0.1);
+    sparkPath(ctx, 0, 0, sp.sc * scale);
+    ctx.fillStyle = C.orange;
+    setInkStroke(ctx, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+// ── Flame Layer Drawing (4 layers from inside to outside) ──
+// Layer 1: bright yellow (core)
+// Layer 2: orange-yellow
+// Layer 3: orange-red
+// Layer 4: deep red (outer)
+function drawComicFlame(ctx, cx, cy, scale, alpha, fillProgress, shakeX, shakeY) {
+  // fillProgress: 0→1 controls how much of the flame is filled from bottom to top
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const sx = cx + shakeX;
+  const sy = cy + shakeY;
+
+  // ── Layer 4: Deep Red (outer) ──
+  ctx.save();
+  ctx.beginPath();
+  flamePath(ctx, sx, sy, scale);
+  ctx.clip();
+  ctx.fillStyle = C.deepRed;
+  ctx.fill();
+  setInkStroke(ctx, 5);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Layer 3: Orange-Red ──
+  ctx.save();
+  ctx.beginPath();
+  innerFlamePath1(ctx, sx, sy, scale);
+  ctx.clip();
+  ctx.fillStyle = C.orange;
+  ctx.fill();
+  setInkStroke(ctx, 4);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Layer 2: Orange-Yellow ──
+  ctx.save();
+  ctx.beginPath();
+  innerFlamePath2(ctx, sx, sy, scale);
+  ctx.clip();
+  ctx.fillStyle = C.orangeY;
+  ctx.fill();
+  setInkStroke(ctx, 3.5);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Layer 1: Bright Yellow (core) ──
+  ctx.save();
+  ctx.beginPath();
+  innerFlamePath3(ctx, sx, sy, scale);
+  ctx.clip();
+  ctx.fillStyle = C.brightYellow;
+  ctx.fill();
+  setInkStroke(ctx, 3);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── 2px Pure White Outer Stroke around whole flame ──
+  ctx.save();
+  ctx.strokeStyle = C.white;
+  ctx.lineWidth = 8 * scale; // 2px at reference scale, scaled up
+  flamePath(ctx, sx, sy, scale);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Sparks around flame ──
+  drawSparks(ctx, sx, sy, scale, 1, shakeX, shakeY);
+
+  ctx.restore();
+}
+
+// ── Masked Flame (for fill-up / extinguish animation) ──
+// Only draws the flame from bottom up to the specified height percentage
+function drawMaskedFlame(ctx, cx, cy, scale, alpha, fillHeight, shakeX, shakeY) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const sx = cx + shakeX;
+  const sy = cy + shakeY;
+  const flameBottom = sy + 190 * scale;
+  const flameTop = sy - 180 * scale;
+  const flameH = flameBottom - flameTop;
+  const clipY = flameBottom - flameH * fillHeight;
+
+  // Create clipping region for the fill height
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, clipY, W, flameBottom - clipY + 10);
+  ctx.clip();
+
+  // ── Layer 4: Deep Red (outer) ──
+  ctx.save();
+  ctx.beginPath();
+  flamePath(ctx, sx, sy, scale);
+  ctx.clip();
+  ctx.fillStyle = C.deepRed;
+  ctx.fill();
+  setInkStroke(ctx, 5);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Layer 3: Orange-Red ──
+  ctx.save();
+  ctx.beginPath();
+  innerFlamePath1(ctx, sx, sy, scale);
+  ctx.clip();
+  ctx.fillStyle = C.orange;
+  ctx.fill();
+  setInkStroke(ctx, 4);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Layer 2: Orange-Yellow ──
+  ctx.save();
+  ctx.beginPath();
+  innerFlamePath2(ctx, sx, sy, scale);
+  ctx.clip();
+  ctx.fillStyle = C.orangeY;
+  ctx.fill();
+  setInkStroke(ctx, 3.5);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Layer 1: Bright Yellow (core) ──
+  ctx.save();
+  ctx.beginPath();
+  innerFlamePath3(ctx, sx, sy, scale);
+  ctx.clip();
+  ctx.fillStyle = C.brightYellow;
+  ctx.fill();
+  setInkStroke(ctx, 3);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.restore(); // end clip
+
+  // ── White outer stroke (only draw portion within fill height) ──
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, clipY - 5, W, flameBottom - clipY + 15);
+  ctx.clip();
+  ctx.strokeStyle = C.white;
+  ctx.lineWidth = 8 * scale;
+  flamePath(ctx, sx, sy, scale);
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Sparks (only show when flame is significant) ──
+  if (fillHeight > 0.4) {
+    drawSparks(ctx, sx, sy, scale, fillHeight, shakeX, shakeY);
+  }
+
+  ctx.restore();
+}
+
+// ── Comic Progress Bar ──
+function drawComicProgress(ctx, cx, y, width, height, progress) {
+  const halfW = width / 2;
+  const bx = cx - halfW;
+  const by = y;
+
+  ctx.save();
+
+  // White thick outer stroke (comic style)
+  ctx.fillStyle = C.ink;
+  ctx.beginPath();
+  ctx.roundRect(bx - 6, by - 6, width + 12, height + 12, height / 2 + 6);
+  ctx.fill();
+
+  ctx.fillStyle = C.white;
+  ctx.beginPath();
+  ctx.roundRect(bx - 4, by - 4, width + 8, height + 8, height / 2 + 4);
+  ctx.fill();
+
+  // Black inner outline
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, width, height, height / 2);
+  ctx.stroke();
+
+  // Empty background (dark)
+  ctx.fillStyle = '#1A0505';
+  ctx.beginPath();
+  ctx.roundRect(bx + 2, by + 2, width - 4, height - 4, height / 2 - 2);
+  ctx.fill();
+
+  // Red fill
+  if (progress > 0.01) {
+    const fw = (width - 8) * progress;
+    ctx.fillStyle = C.deepRed;
+    ctx.beginPath();
+    ctx.roundRect(bx + 4, by + 4, fw, height - 8, height / 2 - 4);
+    ctx.fill();
+
+    // Comic highlight on fill
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.roundRect(bx + 4, by + 4, fw, (height - 8) * 0.45, height / 2 - 4);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// ── Background: ANGRY MOLLY ORIGINAL FIRE XL Box ──
+function drawBackground(ctx) {
+  // Solid bright red base
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle comic book texture lines
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0,0,0,0.03)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < H; i += 40) {
+    ctx.beginPath();
+    ctx.moveTo(0, i);
+    ctx.lineTo(W, i + Math.sin(i * 0.01) * 20);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── Black Halftone Dot Silhouette of Angry Molly's Face (drawn FIRST as background layer) ──
+  drawMollyFaceHalftone(ctx, W/2, H * 0.62);
+
+  // ── "ANGRY MOLLY" Title (drawn ON TOP of image) ──
+  // Cream-yellow uppercase, bold, thick black outline
+  const titleY = H * 0.10;
+  const titleSize = 160;
+
+  // Draw each letter individually to replace O with flame
+  const letters = ['A','N','G','R','Y',' ','M','O','L','L','Y'];
+  const letterWidths = [100,116,100,82,100,50,116,112,82,82,100];
+  const totalWidth = letterWidths.reduce((a,b)=>a+b, 0);
+  let lx = (W - totalWidth) / 2;
+
+  letters.forEach((ch, i) => {
+    if (ch === ' ') { lx += letterWidths[i]; return; }
+    if (ch === 'O') {
+      // Draw flame icon instead of O
+      ctx.save();
+      ctx.translate(lx + 50, titleY);
+      ctx.scale(0.72, 0.72);
+      // Flame shape for O
+      ctx.beginPath();
+      ctx.moveTo(0, 50);
+      ctx.bezierCurveTo(30, 60, 50, 30, 45, -10);
+      ctx.bezierCurveTo(40, -50, 20, -70, 0, -90);
+      ctx.bezierCurveTo(-20, -70, -40, -50, -45, -10);
+      ctx.bezierCurveTo(-50, 30, -30, 60, 0, 50);
+      ctx.closePath();
+      ctx.fillStyle = C.orangeY;
+      ctx.fill();
+      setInkStroke(ctx, 6);
+      ctx.stroke();
+      // Inner flame
+      ctx.beginPath();
+      ctx.moveTo(0, 35);
+      ctx.bezierCurveTo(18, 42, 28, 22, 24, -5);
+      ctx.bezierCurveTo(20, -28, 10, -42, 0, -55);
+      ctx.bezierCurveTo(-10, -42, -20, -28, -24, -5);
+      ctx.bezierCurveTo(-28, 22, -18, 42, 0, 35);
+      ctx.closePath();
+      ctx.fillStyle = C.brightYellow;
+      ctx.fill();
+      setInkStroke(ctx, 4);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      drawComicText(ctx, ch, lx + letterWidths[i]/2, titleY, titleSize, C.cream, 8);
+    }
+    lx += letterWidths[i];
+  });
+
+  // ── "ORIGINAL FIRE XL" subtitle (letter-spaced + XL badge, all centered as one) ──
+  const subY = titleY + 140;
+  const subSize = 60;
+  const subLetterSpacing = 6;
+  const subWords = ['O','R','I','G','I','N','A','L',' ','F','I','R','E'];
+
+  // XL badge dimensions
+  const badgeW = 110, badgeH = 52;
+  const badgeGap = 16; // gap between "E" and badge
+
+  // Measure total width: text + gap + badge
+  ctx.save();
+  ctx.font = subSize + 'px Impact, "Arial Black", sans-serif';
+  let subTotalW = 0;
+  subWords.forEach((ch) => {
+    if (ch === ' ') { subTotalW += 20; }
+    else { subTotalW += ctx.measureText(ch).width + subLetterSpacing; }
+  });
+  subTotalW -= subLetterSpacing; // no trailing space
+  subTotalW += badgeGap + badgeW; // add badge width
+
+  // Start x: centered on page
+  let slx = W / 2 - subTotalW / 2;
+
+  // Draw each letter
+  subWords.forEach((ch) => {
+    if (ch === ' ') { slx += 20; return; }
+    const cw = ctx.measureText(ch).width;
+    drawComicText(ctx, ch, slx + cw / 2, subY, subSize, C.cream, 5);
+    slx += cw + subLetterSpacing;
+  });
+
+  // Draw XL badge right after the text
+  slx += badgeGap - subLetterSpacing; // gap after last letter
+  const badgeCX = slx + badgeW / 2;
+  const badgeCY = subY;
+  const skew = 12;
+
+  // Outer: black parallelogram
+  ctx.beginPath();
+  ctx.moveTo(badgeCX - badgeW/2 - 6 + skew, badgeCY - badgeH/2 - 6);
+  ctx.lineTo(badgeCX + badgeW/2 + 6 + skew, badgeCY - badgeH/2 - 6);
+  ctx.lineTo(badgeCX + badgeW/2 + 6 - skew, badgeCY + badgeH/2 + 6);
+  ctx.lineTo(badgeCX - badgeW/2 - 6 - skew, badgeCY + badgeH/2 + 6);
+  ctx.closePath();
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+
+  // Middle: blue parallelogram
+  ctx.beginPath();
+  ctx.moveTo(badgeCX - badgeW/2 - 2 + skew, badgeCY - badgeH/2 - 2);
+  ctx.lineTo(badgeCX + badgeW/2 + 2 + skew, badgeCY - badgeH/2 - 2);
+  ctx.lineTo(badgeCX + badgeW/2 + 2 - skew, badgeCY + badgeH/2 + 2);
+  ctx.lineTo(badgeCX - badgeW/2 - 2 - skew, badgeCY + badgeH/2 + 2);
+  ctx.closePath();
+  ctx.fillStyle = C.blue;
+  ctx.fill();
+
+  // Inner: red parallelogram
+  ctx.beginPath();
+  ctx.moveTo(badgeCX - badgeW/2 + 4 + skew, badgeCY - badgeH/2 + 4);
+  ctx.lineTo(badgeCX + badgeW/2 - 4 + skew, badgeCY - badgeH/2 + 4);
+  ctx.lineTo(badgeCX + badgeW/2 - 4 - skew, badgeCY + badgeH/2 - 4);
+  ctx.lineTo(badgeCX - badgeW/2 + 4 - skew, badgeCY + badgeH/2 - 4);
+  ctx.closePath();
+  ctx.fillStyle = C.deepRed;
+  ctx.fill();
+  setInkStroke(ctx, 2);
+  ctx.stroke();
+
+  // "XL" italic text in cream
+  ctx.font = 'italic bold 34px "Arial Black", Impact, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 4;
+  ctx.strokeText('XL', badgeCX, badgeCY + 1);
+  ctx.fillStyle = C.cream;
+  ctx.fillText('XL', badgeCX, badgeCY + 1);
+  ctx.restore();
+
+  // ── Slogan: below title ──
+  const sloganY = subY + 100;
+  drawComicText(ctx, '\u7528\u6124\u6012\uff0c\u5766\u8bda\u70ed\u7231\u4e16\u754c\uff0c\u771f\u5b9e\u505a\u81ea\u5df1', W / 2, sloganY, 54, C.cream, 7);
+
+  // ── Black Halftone Dot Silhouette drawn earlier as background ──
+
+  // ── Decorative comic lines at four corners ──
+  drawCornerLines(ctx);
+
+  // ── Comic Speech Bubble with "hi!" (positioned to not cover title) ──
+  drawSpeechBubble(ctx, W * 0.78, H * 0.28, 180, 100);
+}
+
+// ── Angry Molly Face Halftone Image ──
+// Draws the pre-generated halftone dot silhouette PNG with white background removed
+function drawMollyFaceHalftone(ctx, cx, cy) {
+  if (!faceImg.complete || !faceImg.naturalWidth) return;
+
+  // Scale up to ~120% of canvas height
+  const maxH = H * 1.2;
+  const aspect = faceImg.naturalWidth / faceImg.naturalHeight;
+  const imgH = maxH;
+  const imgW = imgH * aspect;
+  const ix = cx - imgW / 2;
+  const iy = cy - imgH / 2;
+
+  ctx.save();
+  // "multiply" blending mode: white pixels (255,255,255) × red background = red background
+  // black pixels (0,0,0) × anything = black → perfectly removes white background
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.drawImage(faceImg, ix, iy, imgW, imgH);
+  ctx.restore();
+}
+
+// ── Decorative Comic Lines at Four Corners ──
+function drawCornerLines(ctx) {
+  ctx.save();
+  setInkStroke(ctx, 5);
+  ctx.lineCap = 'round';
+
+  const margin = 55;
+  const lineLen = 120;
+  const lineCount = 5;
+
+  // Helper: draw radiating lines from a corner
+  function drawCornerSet(ox, oy, dirX, dirY) {
+    for (let i = 0; i < lineCount; i++) {
+      const spread = (i - (lineCount - 1) / 2) * 18;
+      const length = lineLen * (0.6 + Math.random() * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(
+        ox + dirX * 10 + spread * dirY,
+        oy + dirY * 10 + spread * dirX
+      );
+      ctx.lineTo(
+        ox + dirX * length + spread * dirY * 0.6,
+        oy + dirY * length + spread * dirX * 0.6
+      );
+      ctx.stroke();
+    }
+  }
+
+  // Top-left corner
+  drawCornerSet(margin, margin, 1, 1);
+  // Top-right corner
+  drawCornerSet(W - margin, margin, -1, 1);
+  // Bottom-left corner
+  drawCornerSet(margin, H - margin, 1, -1);
+  // Bottom-right corner
+  drawCornerSet(W - margin, H - margin, -1, -1);
+
+  ctx.restore();
+}
+
+// ── Comic Speech Bubble (empty) ──
+function drawSpeechBubble(ctx, cx, cy, w, h) {
+  ctx.save();
+  // White fill with thick black outline
+  ctx.fillStyle = C.white;
+  setInkStroke(ctx, 5);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, w/2, h/2, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Tail pointing down-left
+  ctx.beginPath();
+  ctx.moveTo(cx - w*0.25, cy + h*0.35);
+  ctx.lineTo(cx - w*0.45, cy + h*0.85);
+  ctx.lineTo(cx - w*0.05, cy + h*0.42);
+  ctx.closePath();
+  ctx.fill();
+  setInkStroke(ctx, 5);
+  ctx.stroke();
+
+  // Halftone shadow inside bubble (subtle)
+  drawHalftone(ctx, cx - w*0.35, cy - h*0.25, w*0.7, h*0.5, 2, 8, 0.08, C.ink);
+
+  // "hi!" text inside bubble
+  ctx.save();
+  ctx.font = 'bold 48px "Arial Black", Impact, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 5;
+  ctx.strokeText('hi!', cx, cy);
+  ctx.fillStyle = C.ink;
+  ctx.fillText('hi!', cx, cy);
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// ── Rounded Rectangle Helper ──
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ── Main Render ──
+function render() {
+  animTime = Date.now() * 0.001; // continuous time in seconds
+
+  const CX = W / 2;
+  const flameScale = 1.3;
+
+  // ── Smooth progress animation (slow lerp toward target) ──
+  progressCurrent += (progressTarget - progressCurrent) * 0.03;
+
+  // ── Screen shake decay ──
+  if (screenShakeDecay > 0) {
+    screenShakeDecay *= 0.88;
+    screenShakeX *= 0.88;
+    screenShakeY *= 0.88;
+    if (screenShakeDecay < 0.01) { screenShakeX = 0; screenShakeY = 0; screenShakeDecay = 0; }
+  }
+
+  const t = animTime;
+
+  // ── Clear & Draw Background ──
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(screenShakeX, screenShakeY);
+  drawBackground(ctx);
+
+  if (pageMode === 'message') {
+    // ═══ MESSAGE MODE: 显示文案，自动跳转结束页 ═══
+    if (msgStartTime === null) msgStartTime = animTime;
+    var msgElapsed = (animTime - msgStartTime) * 1000; // ms
+
+    // 淡入(0~600ms) → 保持(600ms~msgRedirectDelay+600ms) → 淡出 → 跳转
+    var fadeInDur = 600, fadeOutDur = 500;
+    var holdStart = fadeInDur;
+    var fadeOutStart = msgRedirectDelay + fadeInDur;
+
+    if (msgElapsed < fadeInDur) {
+      msgAlpha = msgElapsed / fadeInDur;
+    } else if (msgElapsed < fadeOutStart) {
+      msgAlpha = 1;
+    } else if (msgElapsed < fadeOutStart + fadeOutDur) {
+      msgAlpha = 1 - (msgElapsed - fadeOutStart) / fadeOutDur;
+    } else {
+      msgAlpha = 0;
+    }
+
+    // 绘制文案（居中，大字，漫画风格）
+    ctx.save();
+    ctx.globalAlpha = msgAlpha;
+
+    // 半透明暗色遮罩让文字更清晰
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(W * 0.08, H * 0.38, W * 0.84, H * 0.24);
+
+    // 文案气泡背景
+    var bubbleW = Math.min(W * 0.8, 900);
+    var bubbleH = 200;
+    var bubbleX = W / 2;
+    var bubbleY = H * 0.50;
+    ctx.fillStyle = C.white;
+    setInkStroke(ctx, 6);
+    roundRect(ctx, bubbleX - bubbleW/2, bubbleY - bubbleH/2, bubbleW, bubbleH, 20);
+    ctx.fill();
+    ctx.stroke();
+
+    // 内部描边
+    setInkStroke(ctx, 3);
+    roundRect(ctx, bubbleX - bubbleW/2 + 6, bubbleY - bubbleH/2 + 6, bubbleW - 12, bubbleH - 12, 16);
+    ctx.stroke();
+
+    // 文字：分两行显示
+    drawComicText(ctx, '\u4e0d\u8981\u6000\u7591\u81ea\u5df1', bubbleX, bubbleY - 38, 64, C.deepRed, 7);
+    drawComicText(ctx, '\u4f60\u503c\u5f97\u88ab\u7231', bubbleX, bubbleY + 42, 64, C.orangeY, 7);
+
+    // 小装饰心形（跳动动画）
+    var heartBeat = 1 + Math.sin(t * 4) * 0.08;
+    ctx.save();
+    ctx.translate(bubbleX - bubbleW/2 + 60, bubbleY - bubbleH/2 + 45);
+    ctx.scale(heartBeat, heartBeat);
+    ctx.fillStyle = C.deepRed;
+    setInkStroke(ctx, 2);
+    ctx.beginPath();
+    ctx.moveTo(0, 6);
+    ctx.bezierCurveTo(-12, -6, -22, 4, 0, 22);
+    ctx.bezierCurveTo(22, 4, 12, -6, 0, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(bubbleX + bubbleW/2 - 60, bubbleY - bubbleH/2 + 45);
+    ctx.scale(heartBeat, heartBeat);
+    ctx.fillStyle = C.deepRed;
+    setInkStroke(ctx, 2);
+    ctx.beginPath();
+    ctx.moveTo(0, 6);
+    ctx.bezierCurveTo(-12, -6, -22, 4, 0, 22);
+    ctx.bezierCurveTo(22, 4, 12, -6, 0, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.restore();
+
+    // 自动跳转结束页
+    if (!msgRedirected && msgElapsed >= msgTotalDuration) {
+      msgRedirected = true;
+      setTimeout(function() { window.location.href = 'ending.html'; }, 200);
+    }
+  } else {
+    // ═══ LOADING MODE: 原有逻辑（点击进入） ═══
+
+    // ── Draw click flame effects ──
+    drawClickFlames(ctx, t);
+
+    // ── Prompt text above progress bar ──
+    const promptY = H * 0.84;
+    drawSmallComicText(ctx, '\u8fde\u7eed\u70b9\u51fb\u5c4f\u5e55\u8fdb\u5165molly\u7684\u4e16\u754c', CX, promptY, 40, C.cream, 3);
+
+    // ── Progress Bar (animated 0→100%) ──
+    const barY = H * 0.88;
+    const barW = 600 * flameScale;
+    const barH = 38;
+    drawComicProgress(ctx, CX, barY, barW, barH, progressCurrent);
+  }
+
+  // ── Halftone overlay for comic texture ──
+  drawHalftone(ctx, 0, 0, W, H, 1.5, 18, 0.04, C.ink);
+
+  // ── Gritty texture overlay ──
+  drawNoise(ctx, 0, 0, W, H, 0.04, 600);
+
+  // ── Comic ink splatter decorations (subtle) ──
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = C.ink;
+  // Corner splatters
+  for (let i = 0; i < 12; i++) {
+    const sx = (Math.sin(i * 2.3) * 0.5 + 0.5) * W;
+    const sy = (Math.cos(i * 1.7) * 0.5 + 0.5) * H;
+    const sr = 3 + Math.random() * 8;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sr, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  ctx.restore(); // end screen shake translate
+
+  requestAnimationFrame(render);
+}
+
+// ── Click handler: click to spawn flame, 10 clicks to enter ──
+canvas.addEventListener('click', function(e) {
+  if (pageMode === 'message') return; // message 模式不处理点击
+  if (!flameReady) return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX - screenShakeX;
+  const my = (e.clientY - rect.top) * scaleY - screenShakeY;
+
+  clickCount++;
+  progressTarget = clickCount / MAX_CLICKS;
+  addClickFlame(mx, my);
+
+  // Play biu sound on each click
+  soundBiu();
+
+  if (clickCount >= MAX_CLICKS) {
+    flameReady = false;
+    soundComplete();
+    // Go directly to main page after final animation
+    setTimeout(function() {
+      window.location.href = 'main.html';
+    }, 1200);
+  }
+});
+
+// ── 检测是否从页面一返回，显示文字跳动 ──
+var returnBounceEl = document.getElementById('returnBounceText');
+var fromPage = urlParams.get('from') || '';
+if (fromPage === 'page1') {
+  setTimeout(function() {
+    returnBounceEl.classList.add('show');
+    setTimeout(function() {
+      returnBounceEl.classList.remove('show');
+    }, 2000);
+  }, 600);
+}
+
+// ── Cursor: pointer everywhere ──
+canvas.style.cursor = 'pointer';
+
+// Start
+render();
+</script>
+</body>
+</html>

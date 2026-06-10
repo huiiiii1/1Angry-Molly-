@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=375, user-scalable=no, initial-scale=1.0, maximum-scale=1.0">
+<title>梦想画室</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+}
+
+/* 手机容器 */
+.phone-container {
+  width: 375px;
+  height: 100vh;
+  max-height: 812px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+  background-color: #000;
+}
+
+/* 场景背景 */
+.scene-bg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+/* 交互物件通用样式 */
+.interactive-item {
+  position: absolute;
+  z-index: 10;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transform-origin: center center;
+
+  /* 低频率轻微抖动 */
+  animation: gentleShake 3s ease-in-out infinite;
+}
+
+.interactive-item.item-easel { animation-delay: 0s; }
+.interactive-item.item-brushes { animation-delay: 0.8s; }
+.interactive-item.item-paints { animation-delay: 1.6s; }
+
+@keyframes gentleShake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(0.5px, 0.3px) rotate(0.15deg); }
+  40% { transform: translate(-0.4px, 0.5px) rotate(-0.1deg); }
+  60% { transform: translate(0.3px, -0.3px) rotate(0.08deg); }
+  80% { transform: translate(-0.5px, -0.4px) rotate(-0.12deg); }
+}
+
+/* 物件图片 */
+.interactive-item img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ===== 微信风格对话气泡（米白色） ===== */
+.bubble-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 50;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 20px;
+}
+
+.wechat-bubble {
+  position: absolute;
+  pointer-events: auto;
+  max-width: 195px;
+  min-width: 155px;
+  background: rgba(253, 250, 242, 0.97);
+  border-radius: 12px;
+  padding: 11px 13px 24px 13px;
+  color: #333;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: 0.4px;
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.14),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  transform: scale(0.85) translateY(8px);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.wechat-bubble.active {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* 气泡三角 */
+.wechat-bubble::before {
+  content: '';
+  position: absolute;
+  width: 0; height: 0;
+  border-style: solid;
+}
+/* 默认箭头朝上（气泡在物件下方） */
+.wechat-bubble.arrow-up::before {
+  bottom: 100%;
+  left: 24px;
+  border-width: 0 7px 9px 7px;
+  border-color: transparent transparent rgba(253, 250, 242, 0.97) transparent;
+}
+/* 箭头朝下（气泡在物件上方） */
+.wechat-bubble.arrow-down::before {
+  top: 100%;
+  left: 24px;
+  border-width: 9px 7px 0 7px;
+  border-color: rgba(253, 250, 242, 0.97) transparent transparent transparent;
+}
+/* 箭头朝左 */
+.wechat-bubble.arrow-left::before {
+  right: 100%;
+  top: 18px;
+  border-width: 7px 10px 7px 0;
+  border-color: transparent rgba(253, 250, 242, 0.97) transparent transparent;
+}
+/* 箭头朝右 */
+.wechat-bubble.arrow-right::before {
+  left: 100%;
+  top: 18px;
+  border-width: 7px 0 7px 10px;
+  border-color: transparent transparent transparent rgba(253, 250, 242, 0.97);
+}
+
+/* 点击关闭提示 */
+.bubble-hint {
+  position: absolute;
+  bottom: 7px;
+  left: 0; width: 100%;
+  text-align: center;
+  font-size: 14px;
+  color: #bbb;
+  letter-spacing: 0.3px;
+}
+
+/* ===== 最终问题弹窗 ===== */
+.final-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.4s ease;
+}
+.final-modal.show {
+  opacity: 1;
+  visibility: visible;
+}
+.final-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px 26px 28px;
+  width: 320px;
+  max-width: 88%;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  transform: scale(0.9) translateY(20px);
+  transition: all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.final-modal.show .final-card {
+  transform: scale(1) translateY(0);
+}
+.final-q {
+  font-size: 17px;
+  color: #222;
+  line-height: 1.7;
+  margin-bottom: 28px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.final-options .opt-btn {
+  display: block;
+  width: 100%;
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  border: 2px solid #f0ebe0;
+  border-radius: 12px;
+  background: #faf8f3;
+  color: #555;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  line-height: 1.5;
+  text-align: left;
+}
+.final-options .opt-btn:last-child { margin-bottom: 0; }
+.final-options .opt-btn:hover,
+.final-options .opt-btn:active {
+  border-color: #d4a853;
+  background: #fdf6e8;
+  color: #8b6914;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(212,168,83,0.2);
+}
+
+/* 结果提示文字 */
+.result-toast {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  background: rgba(255,255,255,0.96);
+  padding: 24px 36px;
+  border-radius: 16px;
+  font-size: 16px;
+  color: #444;
+  z-index: 300;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.35s ease;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+  text-align: center;
+  line-height: 1.6;
+}
+.result-toast.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* ── 返回按钮 ── */
+.back-btn {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 200;
+  width: 44px;
+  height: 44px;
+  background: rgba(253, 250, 242, 0.95);
+  border: 2px solid rgba(0,0,0,0.3);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transition: all 0.2s ease;
+  font-size: 20px;
+  color: #333;
+  font-weight: bold;
+  text-decoration: none;
+}
+.back-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.back-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+/* 点击遮罩层（用于关闭气泡） */
+.close-layer {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 5;
+  display: none;
+}
+</style>
+<link rel="prefetch" href="retro_oil_bg.jpg" as="image">
+<link rel="prefetch" href="molly_avatar.png" as="image">
+<link rel="prefetch" href="sticker1.png" as="image">
+<link rel="prefetch" href="sticker2.png" as="image">
+<link rel="prefetch" href="sticker3.png" as="image">
+</head>
+<body>
+
+<!-- 预加载主页面图片，加速返回时加载 -->
+<div style="display:none" aria-hidden="true">
+  <img src="retro_oil_bg.jpg" alt="">
+  <img src="molly_avatar.png" alt="">
+  <img src="sticker1.png" alt="">
+  <img src="sticker2.png" alt="">
+  <img src="sticker3.png" alt="">
+</div>
+
+<div class="phone-container" id="phoneContainer">
+
+  <!-- 返回按钮 -->
+  <a class="back-btn" href="main.html?from=subpage" title="返回">&larr;</a>
+
+  <!-- 场景背景 -->
+  <img class="scene-bg" src="bg_room.png" alt="画室背景">
+
+  <!-- 交互物件 -->
+  <div class="interactive-item item-easel" id="itemEasel"
+       style="left: 10%; bottom: 8%; width: 80%;" data-clicked="false" data-item="easel">
+    <img src="easel.png" alt="画架">
+  </div>
+
+  <div class="interactive-item item-brushes" id="itemBrushes"
+       style="left: 18%; bottom: 13%; width: 70%;" data-clicked="false" data-item="brushes">
+    <img src="brushes.png" alt="画笔">
+  </div>
+
+  <div class="interactive-item item-paints" id="itemPaints"
+       style="left: -2%; bottom: 4%; width: 95%;" data-clicked="false" data-item="paints">
+    <img src="paints.png" alt="颜料">
+  </div>
+
+  <!-- 气泡容器 -->
+  <div class="bubble-overlay" id="bubbleOverlay"></div>
+
+  <!-- 关闭遮罩 -->
+  <div class="close-layer" id="closeLayer"></div>
+
+</div>
+
+<!-- 最终问题弹窗 -->
+<div class="final-modal" id="finalModal">
+  <div class="final-card">
+    <div class="final-q">Q：当在追逐梦想的路上遇到挫折，你会选择什么？</div>
+    <div class="final-options">
+      <button class="opt-btn" onclick="selectOption('A')">
+        A：迎难而上，没有什么可以打倒我！
+      </button>
+      <button class="opt-btn" onclick="selectOption('B')">
+        B：还是回到舒适区吧，可能真的不适合。
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 结果提示 -->
+<div class="result-toast" id="resultToast"></div>
+
+<script>
+// ── Simple audio system ──
+var pageAudio = null;
+function getPageAudio() {
+  if (!pageAudio) { try { pageAudio = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ pageAudio = null; } }
+  if (pageAudio && pageAudio.state === 'suspended') pageAudio.resume();
+  return pageAudio;
+}
+document.addEventListener('click', function(){ getPageAudio(); }, {once:true});
+document.addEventListener('touchstart', function(){ getPageAudio(); }, {once:true});
+function soundBackClick() {
+  var ctx = getPageAudio(); if (!ctx) return;
+  var osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = 'sine'; osc.frequency.setValueAtTime(660, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.2);
+  gain.gain.setValueAtTime(0.08, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(); osc.stop(ctx.currentTime + 0.3);
+}
+// Celebration jingle: ascending arpeggio
+function soundCelebrate() {
+  var ctx = getPageAudio(); if (!ctx) return;
+  var t = ctx.currentTime;
+  [523.25, 659.25, 783.99, 1046.50].forEach(function(freq, i) {
+    var osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t + i * 0.1);
+    gain.gain.setValueAtTime(0.12, t + i * 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.25);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + i * 0.1); osc.stop(t + i * 0.1 + 0.3);
+  });
+}
+document.addEventListener('DOMContentLoaded', function(){
+  var btn = document.querySelector('.back-btn');
+  if (btn) btn.addEventListener('click', function(){ soundBackClick(); });
+});
+
+// ========== 气泡文案配置 ==========
+var BUBBLE_DATA = {
+  easel:   '老师总说我型不准，我还要继续坚持画画吗？',
+  brushes: '反复画不好，难道我真的没有天赋？',
+  paints:  '旁人都不看好，这份热爱值得坚持吗？'
+};
+
+var activeBubble = null;
+var clickedSet = { easel: false, brushes: false, paints: false };
+var totalItems = 3;
+var finalShown = false;
+
+var bubbleOverlay = document.getElementById('bubbleOverlay');
+var container = document.getElementById('phoneContainer');
+
+// ========== 点击区域定义（基于容器百分比 0~1） ==========
+// 彻底绕开 DOM 重叠问题，用纯坐标判定
+var ZONES = [
+  { key: 'easel',   xMin: 0.28, xMax: 0.78, yMin: 0.12, yMax: 0.90 },   // 中间 → 画架
+  { key: 'brushes', xMin: 0.52, xMax: 1.00, yMin: 0.48, yMax: 1.00 },   // 右下 → 画笔
+  { key: 'paints',  xMin: 0.00, xMax: 0.48, yMin: 0.52, yMax: 1.00 }     // 左下 → 颜料
+];
+
+// ========== 根据点击坐标判定命中区域 ==========
+function getHitZone(normX, normY) {
+  for (var i = 0; i < ZONES.length; i++) {
+    var z = ZONES[i];
+    if (normX >= z.xMin && normX <= z.xMax && normY >= z.yMin && normY <= z.yMax) {
+      return z.key;
+    }
+  }
+  return null;
+}
+
+// ========== 显示气泡（每个区域固定位置） ==========
+function showBubble(itemKey) {
+  hideBubble();
+  var text = BUBBLE_DATA[itemKey];
+  if (!text) return;
+
+  var bubble = document.createElement('div');
+  bubble.className = 'wechat-bubble';
+
+  var cW = container.offsetWidth;
+  var cH = container.offsetHeight;
+  var bW = 190, bH = 85;
+
+  var topPos, leftPos, arrowClass;
+
+  if (itemKey === 'easel') {
+    // 画架气泡：中上部居中，箭头朝下
+    arrowClass = 'arrow-down';
+    leftPos = Math.round((cW - bW) / 2);
+    topPos = Math.round(cH * 0.12);
+  } else if (itemKey === 'brushes') {
+    // 画笔气泡：右侧偏下，箭头朝左
+    arrowClass = 'arrow-left';
+    leftPos = cW - bW - 14;
+    topPos = Math.round(cH * 0.46);
+  } else {
+    // 颜料气泡：左侧偏下，箭头朝右
+    arrowClass = 'arrow-right';
+    leftPos = 14;
+    topPos = Math.round(cH * 0.44);
+  }
+
+  bubble.classList.add(arrowClass);
+  bubble.style.top = topPos + 'px';
+  bubble.style.left = leftPos + 'px';
+  bubble.innerHTML = '<span>' + text + '</span><div class="bubble-hint">— 点击任意处关闭 —</div>';
+
+  bubbleOverlay.appendChild(bubble);
+  requestAnimationFrame(function() { bubble.classList.add('active'); });
+  activeBubble = bubble;
+}
+
+// ========== 关闭气泡 ==========
+function hideBubble() {
+  if (activeBubble) {
+    activeBubble.classList.remove('active');
+    setTimeout(function() {
+      if (activeBubble && activeBubble.parentNode) activeBubble.remove();
+      activeBubble = null;
+    }, 350);
+  }
+}
+
+// ========== 容器统一点击监听（区域判定方案）==========
+container.addEventListener('click', function(e) {
+  var cRect = container.getBoundingClientRect();
+  var relX = e.clientX - cRect.left;
+  var relY = e.clientY - cRect.top;
+
+  // 归一化到 0~1
+  var normX = relX / cRect.width;
+  var normY = relY / cRect.height;
+
+  // 判定落在哪个区域
+  var hitKey = getHitZone(normX, normY);
+  if (!hitKey) return; // 点了空白区不处理
+
+  // 记录点击
+  if (!clickedSet[hitKey]) {
+    clickedSet[hitKey] = true;
+  }
+
+  showBubble(hitKey);
+
+  // 检查是否全部点完
+  var count = 0;
+  for (var k in clickedSet) { if (clickedSet[k]) count++; }
+  if (count === totalItems && !finalShown) {
+    finalShown = true;
+    setTimeout(showFinalModal, 1500);
+  }
+});
+
+// ========== 全局点击关闭气泡 ==========
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#phoneContainer')) hideBubble();
+});
+
+// ========== 最终弹窗 ==========
+function showFinalModal() {
+  hideBubble();
+  document.getElementById('finalModal').classList.add('show');
+}
+function selectOption(opt) {
+  var toast = document.getElementById('resultToast');
+  document.getElementById('finalModal').classList.remove('show');
+  toast.innerHTML = opt === 'A'
+    ? '<p>迎难而上的你，终将抵达梦想的彼岸！</p><p>每一份坚持都不会被辜负。</p>'
+    : '<p>舒适区也并非终点，</p><p>换个角度，你会发现新的可能。</p>';
+  toast.classList.add('show');
+  if (opt === 'A') soundCelebrate();
+  setTimeout(function() { toast.classList.remove('show'); }, 3500);
+}
+</script>
+
+  <!-- 引导提示 -->
+  <div style="position:absolute; bottom:12px; left:0; width:100%; text-align:center; font-size:12px; color:#bbb; letter-spacing:0.5px; z-index:60; text-shadow:0 1px 0 rgba(255,255,255,0.3);">点击画室物件，点击 ← 返回主页面</div>
+</body>
+</html>

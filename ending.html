@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Angry Molly - 感谢游玩</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0A0A0A;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+#canvas { display: block; image-rendering: pixelated; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+// ── Simple audio system ──
+var audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ audioCtx = null; } }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function soundFanfare() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var notes = [523, 659, 784, 1047];
+  notes.forEach(function(f, i) {
+    var osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'triangle'; osc.frequency.setValueAtTime(f, ctx.currentTime + i * 0.2);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.2);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + i * 0.2 + 0.6);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + i * 0.2); osc.stop(ctx.currentTime + i * 0.2 + 0.7);
+  });
+}
+
+// ── Pop Mart cheerful song (continued from main page) ──
+function soundCheerfulSong() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var t = ctx.currentTime;
+  var bpm = 165, beat = 60 / bpm, eighth = beat / 2;
+  var notes = { C4:261.63,D4:293.66,E4:329.63,G4:392.00,A4:440.00, C5:523.25,D5:587.33,E5:659.25,G5:783.99,A5:880.00, C6:1046.5 };
+  function n(f,s,d,v,ty){ ty=ty||'triangle'; v=v||0.1; var o=ctx.createOscillator(); var g=ctx.createGain(); o.type=ty; o.frequency.setValueAtTime(f,t+s); if(d>0.2){ o.frequency.setValueAtTime(f*1.005,t+s+d*0.3); o.frequency.setValueAtTime(f,t+s+d*0.6); } g.gain.setValueAtTime(v,t+s); g.gain.setValueAtTime(v,t+s+d*0.15); g.gain.exponentialRampToValueAtTime(0.001,t+s+d); o.connect(g); g.connect(ctx.destination); o.start(t+s); o.stop(t+s+d+0.05); }
+  function ch(fs,s,d,v,ty){ fs.forEach(function(f){ n(f,s,d,v||0.04,ty||'sine'); }); }
+  function k(at,v){ v=v||0.08; var o=ctx.createOscillator(); var g=ctx.createGain(); o.type='sine'; o.frequency.setValueAtTime(150,t+at); o.frequency.exponentialRampToValueAtTime(40,t+at+0.1); g.gain.setValueAtTime(v,t+at); g.gain.exponentialRampToValueAtTime(0.001,t+at+0.18); o.connect(g); g.connect(ctx.destination); o.start(t+at); o.stop(t+at+0.2); }
+  function sn(at,v){ v=v||0.03; var bl=ctx.sampleRate*0.08; var b=ctx.createBuffer(1,bl,ctx.sampleRate); var d=b.getChannelData(0); for(var i=0;i<d.length;i++)d[i]=(Math.random()-0.5)*2*Math.pow(1-i/d.length,2); var s=ctx.createBufferSource(); s.buffer=b; var g=ctx.createGain(); g.gain.setValueAtTime(v,t+at); g.gain.exponentialRampToValueAtTime(0.001,t+at+0.08); var hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.setValueAtTime(3000,t+at); s.connect(hp); hp.connect(g); g.connect(ctx.destination); s.start(t+at); s.stop(t+at+0.1); }
+  function hh(at,v){ v=v||0.015; var bl=ctx.sampleRate*0.04; var b=ctx.createBuffer(1,bl,ctx.sampleRate); var d=b.getChannelData(0); for(var i=0;i<d.length;i++)d[i]=(Math.random()-0.5)*2*Math.pow(1-i/d.length,3); var s=ctx.createBufferSource(); s.buffer=b; var g=ctx.createGain(); g.gain.setValueAtTime(v,t+at); g.gain.exponentialRampToValueAtTime(0.001,t+at+0.03); var hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.setValueAtTime(8000,t+at); s.connect(hp); hp.connect(g); g.connect(ctx.destination); s.start(t+at); s.stop(t+at+0.05); }
+
+  var bar = beat * 4;
+  // Intro
+  ch([notes.C4,notes.E4,notes.G4],0,bar,0.06); n(notes.C4,0,eighth,0.12); n(notes.E4,eighth,eighth,0.12); n(notes.G4,eighth*2,eighth,0.12); n(notes.C5,eighth*3,eighth,0.12); n(notes.E5,eighth*4,eighth*2,0.13); k(0,0.1); k(beat*2,0.08); hh(eighth); hh(eighth*3); hh(eighth*5); hh(eighth*7);
+  // Bars 1-2
+  var s1=bar; n(notes.E4,s1,eighth,0.14); n(notes.G4,s1+eighth,eighth,0.14); n(notes.A4,s1+eighth*2,eighth,0.15); n(notes.G4,s1+eighth*3,eighth,0.14); n(notes.E4,s1+eighth*4,eighth,0.14); n(notes.C5,s1+eighth*5,eighth,0.15); n(notes.A4,s1+eighth*6,eighth,0.13); n(notes.G4,s1+eighth*7,eighth,0.12);
+  n(notes.E4,s1+bar,eighth,0.14); n(notes.D4,s1+bar+eighth,eighth,0.13); n(notes.E4,s1+bar+eighth*2,eighth*2,0.15); n(notes.G4,s1+bar+eighth*4,eighth,0.14); n(notes.A4,s1+bar+eighth*5,eighth,0.14); n(notes.G4,s1+bar+eighth*6,eighth,0.12); n(notes.E4,s1+bar+eighth*7,eighth*2,0.13);
+  ch([notes.C4,notes.G4],s1,bar*0.8,0.03); ch([notes.A3,notes.E4],s1+bar*0.5,bar*0.4,0.03); ch([notes.C4,notes.G4],s1+bar,bar*0.8,0.03);
+  for(var b=0;b<8;b++){ k(s1+b*beat,b===0?0.08:0.05); hh(s1+b*beat+eighth,0.012); sn(s1+b*beat+beat,b%2===0?0.04:0.03); }
+  // Bars 3-4
+  var s2=s1+bar*2; n(notes.C5,s2,eighth,0.15); n(notes.A4,s2+eighth,eighth,0.14); n(notes.G4,s2+eighth*2,eighth,0.13); n(notes.E4,s2+eighth*3,eighth,0.12); n(notes.D4,s2+eighth*4,eighth,0.13); n(notes.E4,s2+eighth*5,eighth,0.14); n(notes.G4,s2+eighth*6,eighth,0.14); n(notes.E4,s2+eighth*7,eighth*2,0.15);
+  n(notes.A4,s2+bar,eighth,0.14); n(notes.G4,s2+bar+eighth,eighth,0.13); n(notes.E4,s2+bar+eighth*2,eighth,0.12); n(notes.C5,s2+bar+eighth*3,eighth,0.14); n(notes.A4,s2+bar+eighth*4,eighth,0.13); n(notes.G4,s2+bar+eighth*5,eighth,0.12); n(notes.E4,s2+bar+eighth*6,beat,0.14); n(notes.D4,s2+bar+eighth*7,eighth,0.1);
+  ch([notes.F3,notes.C4],s2,bar*1.5,0.03); ch([notes.C4,notes.E4],s2+bar,bar*1.5,0.03);
+  for(var b2=0;b2<8;b2++){ k(s2+b2*beat,b2===0?0.08:0.05); hh(s2+b2*beat+eighth,0.012); sn(s2+b2*beat+beat,b2%2===0?0.04:0.03); }
+  // Bars 5-6 (A' variation)
+  var s3=s2+bar*2; var mA=[[notes.E5,0],[notes.D5,1],[notes.C5,2],[notes.A4,3],[notes.G4,4],[notes.E4,5],[notes.D4,6],[notes.E4,7],[notes.G4,8],[notes.A4,9],[notes.G4,10],[notes.E4,11],[notes.C5,12],[notes.A4,13],[notes.G4,14],[notes.E4,16]]; mA.forEach(function(m){ n(m[0],s3+m[1]*eighth,eighth*0.9,0.13); });
+  var hA=[[notes.C5,0],[notes.G4,1],[notes.A4,2],[notes.F4,3],[notes.E4,4],[notes.C4,5],[notes.D4,6],[notes.C4,7],[notes.E4,8],[notes.F4,9],[notes.E4,10],[notes.C4,11],[notes.A4,12],[notes.F4,13],[notes.E4,14],[notes.G4,16]]; hA.forEach(function(h){ n(h[0],s3+h[1]*eighth,eighth*0.9,0.06,'sine'); });
+  ch([notes.C4,notes.E4,notes.G4],s3,bar*1.5,0.04); ch([notes.A3,notes.C4,notes.E4],s3+bar,bar*1.5,0.04);
+  for(var b3=0;b3<8;b3++){ k(s3+b3*beat,b3%2===0?0.09:0.06); hh(s3+b3*beat+eighth,0.015); hh(s3+b3*beat+eighth*3,0.012); sn(s3+b3*beat+beat,0.04); }
+  // Bar 7-8 finale
+  var s4=s3+bar*2; n(notes.E4,s4,eighth,0.14); n(notes.G4,s4+eighth,eighth,0.14); n(notes.A4,s4+eighth*2,eighth,0.15); n(notes.C5,s4+eighth*3,eighth,0.15); n(notes.D5,s4+eighth*4,eighth,0.14); n(notes.C5,s4+eighth*5,eighth,0.14); n(notes.A4,s4+eighth*6,eighth,0.13); n(notes.G4,s4+eighth*7,eighth,0.13);
+  n(notes.E4,s4+bar,eighth,0.13); n(notes.D4,s4+bar+eighth,eighth,0.12); n(notes.C4,s4+bar+eighth*2,eighth,0.11); n(notes.D4,s4+bar+eighth*3,eighth*2,0.12); n(notes.C4,s4+bar+eighth*5,beat,0.14);
+  ch([notes.C4,notes.E4,notes.G4,notes.C5],s4+bar+eighth*6,bar*0.7,0.07,'triangle'); n(notes.C5,s4+bar+eighth*6,bar*0.7,0.12);
+  n(notes.E5,s4+bar+eighth*6+0.05,bar*0.6,0.06,'sine'); n(notes.G5,s4+bar+eighth*6+0.1,bar*0.5,0.05,'sine'); n(notes.C6,s4+bar+eighth*6+0.15,bar*0.4,0.04,'sine');
+  ch([notes.C4,notes.G4],s4,bar*1.8,0.04); ch([notes.C4,notes.E4,notes.G4],s4+bar,bar*2,0.05,'triangle');
+  for(var b4=0;b4<8;b4++){ k(s4+b4*beat,b4%2===0?0.09:0.06); hh(s4+b4*beat+eighth,0.018); hh(s4+b4*beat+eighth*3,0.014); sn(s4+b4*beat+beat,b4%2===0?0.05:0.03); }
+  k(s4+bar+eighth*6,0.12);
+}
+function soundRestart() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = 'sine'; osc.frequency.setValueAtTime(440, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
+  gain.gain.setValueAtTime(0.08, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(); osc.stop(ctx.currentTime + 0.4);
+}
+// Auto-play music on load (user already interacted on main page, AudioContext is running)
+setTimeout(function() {
+  var playCheerful = false;
+  try { playCheerful = sessionStorage.getItem('molly_ending_music') === '1'; sessionStorage.removeItem('molly_ending_music'); } catch(e) {}
+
+  function doPlay() {
+    if (playCheerful) {
+      soundCheerfulSong();
+    } else {
+      soundFanfare();
+    }
+  }
+
+  // Try auto-play immediately
+  doPlay();
+
+  // Fallback: if AudioContext still suspended, wait for first gesture
+  var ctx = getAudioCtx();
+  if (!ctx || ctx.state === 'suspended') {
+    function onGesture() {
+      getAudioCtx(); // ensure resumed
+      doPlay();
+      document.removeEventListener('click', onGesture);
+      document.removeEventListener('touchstart', onGesture);
+    }
+    document.addEventListener('click', onGesture);
+    document.addEventListener('touchstart', onGesture);
+  }
+}, 800);
+
+// ═══════════════════════════════════════════════════
+// ANGRY MOLLY - ENDING / THANKS PAGE
+// Macaron Retro Comic Style | Halftone Texture
+// ═══════════════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = 1080, H = 1920;
+canvas.width = W; canvas.height = H;
+
+function resize() {
+  const r = W / H;
+  let vw = window.innerWidth, vh = window.innerHeight;
+  if (vw / vh > r) { vw = vh * r; } else { vh = vw / r; }
+  canvas.style.width = vw + 'px';
+  canvas.style.height = vh + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Color Palette (Macaron Retro Comic) ──
+const C = {
+  ink: '#1a1a1a',
+  white: '#FFFFFF',
+  cream: '#FFF8E7',
+  pink: '#FFB5C5',
+  pinkDark: '#E88A9F',
+  mint: '#A8E6CF',
+  mintDark: '#7BC4A8',
+  yellow: '#FFE066',
+  yellowDark: '#ECC840',
+  lavender: '#D4BFFF',
+  lavenderDark: '#B09AE0',
+  peach: '#FFCBA4',
+  bgCream: '#FFF0E8',
+  coral: '#FF8A80',
+  skyBlue: '#A0D8EF',
+};
+
+// ── Animation Time ──
+let animTime = 0;
+
+// ── Utility Functions ──
+function setInkStroke(ctx, width) {
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+}
+
+function drawHalftoneDot(x, y, r) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.globalAlpha = 0.08;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// ── Draw Comic Text with outline + inner white stroke ──
+function drawComicText(ctx, text, x, y, fontSize, fontColor, outlineWidth, grayscale) {
+  ctx.save();
+  ctx.font = `900 ${fontSize}px Impact, "Arial Black", Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+
+  // Outer black stroke
+  setInkStroke(ctx, outlineWidth);
+  ctx.strokeText(text, x, y);
+
+  // Inner white stroke
+  ctx.strokeStyle = C.white;
+  ctx.lineWidth = Math.max(1, outlineWidth * 0.35);
+  ctx.strokeText(text, x, y);
+
+  // Fill
+  var fillCol = grayscale ? '#999999' : fontColor;
+  ctx.fillStyle = fillCol;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+function drawSmallComicText(ctx, text, x, y, fontSize, fontColor, outlineWidth) {
+  ctx.save();
+  ctx.font = `bold ${fontSize}px "Arial Black", Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = outlineWidth;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fontColor;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+// ── Rounded Sticker Button ──
+function drawStickerButton(ctx, cx, cy, w, h, bgColor, label, subLabel, time, hasStar) {
+  var pulse = Math.sin(time * 3 + cy) * 0.02;
+  var bw = w + pulse * 20;
+  var bh = h + pulse * 10;
+
+  ctx.save();
+
+  // Shadow offset
+  var shadowOff = 8;
+  ctx.fillStyle = C.ink;
+  ctx.globalAlpha = 0.15;
+  roundRect(ctx, cx - bw/2 + shadowOff, cy - bh/2 + shadowOff, bw, bh, 22);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Button fill (macaron pastel)
+  ctx.fillStyle = bgColor;
+  roundRect(ctx, cx - bw/2, cy - bh/2, bw, bh, 22);
+  ctx.fill();
+
+  // White thick comic outline
+  setInkStroke(ctx, 5);
+  ctx.strokeStyle = C.white;
+  roundRect(ctx, cx - bw/2, cy - bh/2, bw, bh, 22);
+  ctx.stroke();
+
+  // Outer ink stroke
+  setInkStroke(ctx, 4);
+  roundRect(ctx, cx - bw/2, cy - bh/2, bw, bh, 22);
+  ctx.stroke();
+
+  // Star decoration on left side (for blind box button)
+  if (hasStar) {
+    drawComicStar(ctx, cx - bw/2 + 50, cy, 18, C.yellow, C.ink, 2.5);
+    // Small sparkle
+    var spAngle = time * 2;
+    var spR = 28;
+    ctx.save();
+    ctx.translate(cx - bw/2 + 50 + Math.cos(spAngle) * spR, cy + Math.sin(spAngle) * spR * 0.5);
+    ctx.rotate(time * 4);
+    drawSparkle(ctx, 0, 0, 6, C.yellow);
+    ctx.restore();
+  }
+
+  // Label text
+  var labelSize = Math.min(38, bw * 0.11);
+  drawSmallComicText(ctx, label, cx + (hasStar ? 15 : 0), cy - (subLabel ? 12 : 0), labelSize, C.ink, 4);
+
+  // Sub-label
+  if (subLabel) {
+    ctx.font = `600 ${Math.min(24, bw * 0.07)}px "Microsoft YaHei", "PingFang SC", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#666666';
+    ctx.fillText(subLabel, cx + (hasStar ? 15 : 0), cy + labelSize * 0.65);
+  }
+
+  ctx.restore();
+}
+
+// ── Rounded Rectangle Path ──
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ── Comic Star (4-point) ──
+function drawComicStar(ctx, cx, cy, size, fillCol, strokeCol, strokeWidth) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  for (var i = 0; i < 4; i++) {
+    ctx.rotate(Math.PI / 2);
+    ctx.beginPath();
+    ctx.moveTo(0, -size);
+    ctx.lineTo(size * 0.25, -size * 0.25);
+    ctx.lineTo(size, 0);
+    ctx.lineTo(size * 0.25, size * 0.25);
+    ctx.lineTo(0, size);
+    ctx.lineTo(-size * 0.25, size * 0.25);
+    ctx.lineTo(-size, 0);
+    ctx.lineTo(-size * 0.25, -size * 0.25);
+    ctx.closePath();
+  }
+  ctx.fillStyle = fillCol;
+  ctx.fill();
+  if (strokeCol) {
+    ctx.strokeStyle = strokeCol;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── Sparkle ──
+function drawSparkle(ctx, x, y, size, col) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - size);
+  ctx.lineTo(x + size * 0.3, y - size * 0.3);
+  ctx.lineTo(x + size, y);
+  ctx.lineTo(x + size * 0.3, y + size * 0.3);
+  ctx.lineTo(x, y + size);
+  ctx.lineTo(x - size * 0.3, y + size * 0.3);
+  ctx.lineTo(x - size, y);
+  ctx.lineTo(x - size * 0.3, y - size * 0.3);
+  ctx.closePath();
+  ctx.fillStyle = col;
+  ctx.fill();
+}
+
+// ── Decor Elements (vinyl, paint bucket, frame pieces) ──
+function drawDecorVinyl(ctx, x, y, r, rot) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+
+  // Vinyl body
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#222222';
+  ctx.fill();
+  setInkStroke(ctx, 3);
+  ctx.stroke();
+
+  // Grooves (concentric circles)
+  ctx.globalAlpha = 0.15;
+  for (var gr = r * 0.3; gr < r * 0.9; gr += r * 0.12) {
+    ctx.beginPath();
+    ctx.arc(0, 0, gr, 0, Math.PI * 2);
+    ctx.strokeStyle = '#444444';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // Center label
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2);
+  ctx.fillStyle = C.pink;
+  ctx.fill();
+  setInkStroke(ctx, 2);
+  ctx.stroke();
+
+  // Center hole
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.05, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawPaintBucket(ctx, x, y, scale, col) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Bucket body
+  ctx.beginPath();
+  ctx.moveTo(-30, 10);
+  ctx.lineTo(-25, 45);
+  ctx.lineTo(25, 45);
+  ctx.lineTo(30, 10);
+  ctx.closePath();
+  ctx.fillStyle = col || C.coral;
+  ctx.fill();
+  setInkStroke(ctx, 3);
+  ctx.stroke();
+
+  // Handle
+  ctx.beginPath();
+  ctx.moveTo(-30, 10);
+  ctx.quadraticCurveTo(-40, -15, -15, -20);
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Paint drip
+  ctx.beginPath();
+  ctx.moveTo(5, 45);
+  ctx.lineTo(8, 55);
+  ctx.lineTo(11, 45);
+  ctx.fillStyle = col || C.coral;
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawFrameCorner(ctx, x, y, size, rot, col) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(size, 0);
+  ctx.lineTo(size, size * 0.15);
+  ctx.lineTo(size * 0.15, size * 0.15);
+  ctx.lineTo(size * 0.15, size);
+  ctx.lineTo(0, size);
+  ctx.closePath();
+  ctx.fillStyle = col || C.yellow;
+  ctx.globalAlpha = 0.6;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  setInkStroke(ctx, 3);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── Halftone Background Pattern ──
+function drawBackground(ctx) {
+  // Base: same bright red as loading page
+  ctx.fillStyle = '#E82020';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle halftone dot pattern overlay
+  ctx.save();
+  ctx.globalAlpha = 0.04;
+  var dotSpacing = 16;
+  for (var dy = 0; dy < H + dotSpacing; dy += dotSpacing) {
+    for (var dx = 0; dx < W + dotSpacing; dx += dotSpacing) {
+      var distFromCenter = Math.sqrt(Math.pow(dx - W/2, 2) + Math.pow(dy - H/2, 2));
+      var maxDist = Math.sqrt(W*W + H*H) / 2;
+      var dotR = 1.5 + (distFromCenter / maxDist) * 2;
+      ctx.beginPath();
+      ctx.arc(dx, dy, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = C.ink;
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // Corner halftone clusters
+  ctx.save();
+  ctx.globalAlpha = 0.03;
+  for (var c = 0; c < 200; c++) {
+    var edgeX = Math.random() < 0.5 ? Math.random() * 120 : W - Math.random() * 120;
+    var edgeY = Math.random() < 0.5 ? Math.random() * 120 : H - Math.random() * 120;
+    drawHalftoneDot(edgeX, edgeY, 2 + Math.random() * 4);
+  }
+  ctx.restore();
+}
+
+// ── Top Banner: "感谢游玩！" ──
+function drawTopBanner(ctx, time) {
+  var bannerY = 100;
+  var bannerW = 720;
+  var bannerH = 110;
+  var bannerX = W / 2;
+
+  // Banner ribbon shape
+  ctx.save();
+  ctx.translate(bannerX, bannerY);
+
+  // Ribbon tail left
+  ctx.beginPath();
+  ctx.moveTo(-bannerW/2 - 40, -bannerH/2 + 15);
+  ctx.lineTo(-bannerW/2, -bannerH/2);
+  ctx.lineTo(-bannerW/2, bannerH/2);
+  ctx.lineTo(-bannerW/2 - 40, bannerH/2 - 15);
+  ctx.closePath();
+  ctx.fillStyle = C.pinkDark;
+  ctx.fill();
+  setInkStroke(ctx, 4);
+  ctx.stroke();
+
+  // Ribbon tail right
+  ctx.beginPath();
+  ctx.moveTo(bannerW/2 + 40, -bannerH/2 + 15);
+  ctx.lineTo(bannerW/2, -bannerH/2);
+  ctx.lineTo(bannerW/2, bannerH/2);
+  ctx.lineTo(bannerW/2 + 40, bannerH/2 - 15);
+  ctx.closePath();
+  ctx.fillStyle = C.pinkDark;
+  ctx.fill();
+  ctx.stroke();
+
+  // Main banner body
+  roundRect(ctx, -bannerW/2, -bannerH/2, bannerW, bannerH, 18);
+  ctx.fillStyle = C.pink;
+  ctx.fill();
+  ctx.strokeStyle = C.white;
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  setInkStroke(ctx, 4);
+  roundRect(ctx, -bannerW/2, -bannerH/2, bannerW, bannerH, 18);
+  ctx.stroke();
+
+  // Banner text
+  drawComicText(ctx, '\u611f\u8c22\u6e38\u73a9\uff01', 0, 0, 68, C.white, 10);
+
+  // Decorative hearts on banner sides
+  var heartPulse = 0.9 + Math.sin(time * 3) * 0.1;
+  drawHeart(ctx, -bannerW/2 + 50, 0, 18 * heartPulse, C.yellow);
+  drawHeart(ctx, bannerW/2 - 50, 0, 18 * heartPulse, C.yellow);
+
+  ctx.restore();
+
+  // Share hint (top right)
+  ctx.save();
+  var shareAlpha = 0.6 + Math.sin(time * 2) * 0.25;
+  ctx.globalAlpha = shareAlpha;
+  drawSmallComicText(ctx, '\u70b9\u51fb\u5206\u4eab\u7ed9\u597d\u53cb\u5427', W - 90, 70, 26, C.pinkDark, 3);
+  ctx.restore();
+
+  // Small hand icon pointing to share text
+  ctx.save();
+  ctx.translate(W - 160, 75);
+  ctx.rotate(Math.sin(time * 1.5) * 0.15);
+  ctx.font = '24px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = C.ink;
+  ctx.fillText('\u270B', 0, 0);
+  ctx.restore();
+}
+
+function drawHeart(ctx, x, y, size, col) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 20, size / 20);
+  ctx.beginPath();
+  ctx.moveTo(0, 5);
+  ctx.bezierCurveTo(-10, -5, -18, 3, 0, 18);
+  ctx.bezierCurveTo(18, 3, 10, -5, 0, 5);
+  ctx.fillStyle = col;
+  ctx.fill();
+  setInkStroke(ctx, 1.5);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── Molly Vinyl Group Image (original image, full width) ──
+var mollyGroupImg = new Image();
+mollyGroupImg.src = 'molly_vinyl_group.jpg';
+
+function drawMollyGroupImage(ctx, time) {
+  if (!mollyGroupImg.complete || !mollyGroupImg.naturalWidth) return;
+
+  // Fill width of page, scale height proportionally
+  var imgW = mollyGroupImg.naturalWidth;
+  var imgH = mollyGroupImg.naturalHeight;
+  var scale = W / imgW; // full width
+  var drawW = W;
+  var drawH = imgH * scale;
+
+  var cx = W / 2;
+  var cy = H * 0.45; // center vertically (shifted up)
+
+  ctx.save();
+  // Draw original image directly (no white removal, no multiply)
+  ctx.drawImage(mollyGroupImg, cx - drawW / 2, cy - drawH / 2, drawW, drawH);
+  ctx.restore();
+}
+
+// ── Buttons Layout & Hit Detection ──
+const BUTTONS = [
+  {
+    label: '\u524d\u5f80\u5c0f\u7a0b\u5e8f\u62bd\u76f2\u76d2',   // 前往小程序抽盲盒
+    subLabel: '',
+    color: C.mint,
+    action: function() { window.location.href = 'https://www.popmart.com.cn/home'; },
+    hasStar: true,
+    cyRatio: 0.76,
+  },
+  {
+    label: '\u518d\u73a9\u4e00\u6b21',                              // 再玩一次
+    subLabel: '',
+    color: C.yellow,
+    action: function() { soundRestart(); setTimeout(function() { window.location.href = 'index.html'; }, 250); },
+    hasStar: false,
+    cyRatio: 0.86,
+  },
+];
+const BTN_W = 520;
+const BTN_H = 105;
+
+function getButtonBounds(idx) {
+  return {
+    x: W / 2,
+    y: H * BUTTONS[idx].cyRatio,
+    w: BTN_W,
+    h: BTN_H,
+  };
+}
+
+function checkHitButton(px, py) {
+  for (var i = 0; i < BUTTONS.length; i++) {
+    var b = getButtonBounds(i);
+    if (px > b.x - b.w/2 && px < b.x + b.w/2 && py > b.y - b.h/2 && py < b.y + b.h/2) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// ── Draw All Buttons ──
+function drawButtons(ctx, time) {
+  for (var i = 0; i < BUTTONS.length; i++) {
+    var b = getButtonBounds(i);
+    var btn = BUTTONS[i];
+    drawStickerButton(ctx, b.x, b.y, b.w, b.h, btn.color, btn.label, btn.subLabel, time, btn.hasStar);
+  }
+}
+
+// ── Page Decorations ──
+function drawPageDecors(ctx, time) {
+  // Vinyl record decoration (bottom left)
+  drawDecorVinyl(ctx, 130, H - 220, 85, time * 0.3);
+
+  // Paint bucket (bottom right)
+  drawPaintBucket(ctx, W - 120, H - 280, 0.8, C.pink);
+
+  // Frame corners
+  drawFrameCorner(ctx, 60, 180, 50, 0, C.mint);
+  drawFrameCorner(ctx, W - 60, 180, 50, Math.PI / 2, C.lavender);
+  drawFrameCorner(ctx, 60, H - 450, 45, -Math.PI / 2, C.yellow);
+  drawFrameCorner(ctx, W - 60, H - 400, 55, Math.PI, C.peach);
+
+  // Scattered small dots / confetti
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  for (var d = 0; d < 30; d++) {
+    var dx = 80 + Math.sin(d * 137.5) * (W - 160) / 2 + W / 4;
+    var dy = 300 + Math.cos(d * 97.3) * 500 + H * 0.2;
+    var dr = 3 + (d % 3) * 2;
+    ctx.beginPath();
+    ctx.arc(dx, dy, dr, 0, Math.PI * 2);
+    var dc = [C.pink, C.mint, C.yellow, C.lavender][d % 4];
+    ctx.fillStyle = dc;
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Mini vinyls floating near top
+  drawDecorVinyl(ctx, 150, 280, 35, -time * 0.5);
+  drawDecorVinyl(ctx, W - 140, 320, 28, time * 0.7);
+
+  // Small stars scattered
+  for (var st = 0; st < 8; st++) {
+    var stx = 100 + (st * 137) % (W - 200);
+    var sty = 200 + (st * 89) % (H * 0.4);
+    var sts = 6 + (st % 3) * 4;
+    var stRot = time * (1.5 + st * 0.3);
+    ctx.save();
+    ctx.translate(stx, sty);
+    ctx.rotate(stRot);
+    drawSparkle(ctx, 0, 0, sts, [C.yellow, C.lavender, C.pink, C.mint][st % 4]);
+    ctx.restore();
+  }
+}
+
+// ── Click Handler ──
+canvas.addEventListener('click', function(e) {
+  var p = getPointerPos(e);
+  var hitIdx = checkHitButton(p.x, p.y);
+  if (hitIdx >= 0) {
+    BUTTONS[hitIdx].action();
+  }
+});
+
+canvas.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  var t = e.touches[0];
+  var r = canvas.getBoundingClientRect();
+  var px = (t.clientX - r.left) / r.width * W;
+  var py = (t.clientY - r.top) / r.height * H;
+  var hitIdx = checkHitButton(px, py);
+  if (hitIdx >= 0) {
+    BUTTONS[hitIdx].action();
+  }
+}, { passive: false });
+
+function getPointerPos(e) {
+  var r = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) / r.width * W,
+    y: (e.clientY - r.top) / r.height * H,
+  };
+}
+
+// ── Hover Cursor ──
+canvas.addEventListener('mousemove', function(e) {
+  var p = getPointerPos(e);
+  var hit = checkHitButton(p.x, p.y) >= 0;
+  canvas.style.cursor = hit ? 'pointer' : 'default';
+});
+
+// ═══════════════════════════════════════════════════
+// RENDER LOOP
+// ═══════════════════════════════════════════════════
+function render() {
+  animTime += 1 / 24; // 24fps
+
+  // Background (red)
+  drawBackground(ctx);
+
+  // Molly vinyl group image (above background, below everything else)
+  drawMollyGroupImage(ctx, animTime);
+
+  // Top banner (above image)
+  drawTopBanner(ctx, animTime);
+
+  // Buttons (above all)
+  drawButtons(ctx, animTime);
+
+  requestAnimationFrame(render);
+}
+
+// Start
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

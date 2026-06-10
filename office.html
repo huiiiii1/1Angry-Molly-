@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>复古桌面场景</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', 'cursive';
+        }
+
+        .phone-frame {
+            width: 375px;
+            height: 812px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+            border-radius: 8px;
+        }
+
+        /* ===== 牛皮便签纸背景 · 美式漫画风 ===== */
+        .kraft-bg {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background:
+                radial-gradient(circle, rgba(139,119,90,0.22) 1px, transparent 1px),
+                radial-gradient(ellipse at 12% 18%, rgba(170,150,100,0.4) 0%, transparent 45%),
+                radial-gradient(ellipse at 88% 72%, rgba(160,140,90,0.3) 0%, transparent 40%),
+                radial-gradient(ellipse at 55% 55%, rgba(190,170,130,0.2) 0%, transparent 55%),
+                radial-gradient(ellipse at 28% 82%, rgba(150,130,80,0.25) 0%, transparent 35%),
+                linear-gradient(175deg, #d8c8a8 0%, #ccb890 25%, #c0ac80 55%, #b4a070 100%);
+            background-size: 5px 5px, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+        }
+
+        /* 笔记本顶边打孔效果 */
+        .kraft-bg::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 18px;
+            right: 18px;
+            height: 4px;
+            background: repeating-radial-gradient(
+                circle at center,
+                transparent 0px,
+                transparent 3px,
+                #7a6345 3px,
+                #7a6345 5px,
+                transparent 5px,
+                transparent 13px
+            );
+            background-size: 17px 17px;
+            background-repeat: repeat-x;
+            z-index: 5;
+        }
+
+        /* 打孔虚线 */
+        .kraft-bg::after {
+            content: '';
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            right: 18px;
+            height: 2px;
+            background: repeating-linear-gradient(
+                90deg,
+                #9b8565 0px,
+                #9b8565 5px,
+                transparent 5px,
+                transparent 10px
+            );
+            opacity: 0.6;
+        }
+
+        /* 边缘卷边 */
+        .paper-edge {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 3;
+        }
+        .paper-edge::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 30px;
+            background: linear-gradient(to bottom, rgba(200,180,140,0.5) 0%, transparent 100%);
+        }
+        .paper-edge::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0; height: 35px;
+            background: linear-gradient(to top, rgba(90,70,40,0.35) 0%, transparent 100%);
+        }
+
+        .corner-fold {
+            position: absolute;
+            width: 44px;
+            height: 44px;
+            pointer-events: none;
+            z-index: 4;
+        }
+        .corner-fold.tl { top:0; left:0; background: linear-gradient(135deg, rgba(180,160,120,0.55) 0%, transparent 65%); border-radius: 0 0 100% 0; }
+        .corner-fold.tr { top:0; right:0; background: linear-gradient(-135deg, rgba(180,160,120,0.55) 0%, transparent 65%); border-radius: 0 0 0 100%; }
+        .corner-fold.bl { bottom:0; left:0; background: linear-gradient(45deg, rgba(100,80,50,0.45) 0%, transparent 65%); border-radius: 0 100% 0 0; }
+        .corner-fold.br { bottom:0; right:0; background: linear-gradient(-45deg, rgba(100,80,50,0.45) 0%, transparent 65%); border-radius: 100% 0 0 0; }
+
+        /* ===== 桌面 ===== */
+        .desk-container {
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, -50%) perspective(900px) rotateX(12deg);
+            width: 420px;
+            z-index: 10;
+        }
+
+        .desk {
+            width: 100%;
+            height: 300px;
+            background:
+                repeating-linear-gradient(90deg, rgba(139,90,43,0.15) 0px, rgba(139,90,43,0.07) 2px, transparent 2px, transparent 12px),
+                linear-gradient(180deg, #c8a068 0%, #b89450 50%, #a87c38 100%);
+            border: 5px solid #1a1a1a;
+            border-radius: 5px;
+            position: relative;
+            box-shadow: 10px 16px 0px rgba(0,0,0,0.35), 4px 6px 0px #1a1a1a;
+        }
+
+        .desk::before {
+            content: '';
+            position: absolute;
+            bottom: -11px;
+            left: 4px;
+            right: 4px;
+            height: 11px;
+            background: linear-gradient(180deg, #8b6e14 0%, #6b4e10 100%);
+            border: 4px solid #1a1a1a;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+        }
+
+        .desk::after {
+            content: '';
+            position: absolute;
+            bottom: -16px;
+            left: 10px;
+            right: 10px;
+            height: 5px;
+            background: #5a3e0a;
+            border-radius: 0 0 3px 3px;
+        }
+
+        .desk-items {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+        }
+
+        /* ===== 通用物件 ===== */
+        .item {
+            position: absolute;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            z-index: 20;
+        }
+        .item:hover { transform: scale(1.08); }
+        .item:active { transform: scale(0.92); }
+
+        /* 抖动动画 */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-7px); }
+        }
+        .float-anim    { animation: float 3.8s ease-in-out infinite; }
+        .float-anim-d1 { animation: float 3.8s ease-in-out 0.7s infinite; }
+        .float-anim-d2 { animation: float 3.8s ease-in-out 1.4s infinite; }
+        .float-anim-d3 { animation: float 3.8s ease-in-out 2.1s infinite; }
+
+        /* ===== 笔记本电脑 ===== */
+        .laptop {
+            top: 130px;
+            left: 50%;
+            transform: translateX(-50%) !important;
+            width: 180px;
+            height: 140px;
+        }
+        .laptop-screen {
+            width: 155px;
+            height: 105px;
+            background: #dcdcdc;
+            border: 5px solid #1a1a1a;
+            border-radius: 8px 8px 0 0;
+            position: relative;
+            margin: 0 auto;
+            transform: perspective(250px) rotateX(-6deg);
+            transform-origin: bottom center;
+        }
+        .laptop-screen::before {
+            content: '';
+            position: absolute;
+            top: 7px; left: 7px; right: 7px; bottom: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 2px solid #1a1a1a;
+            border-radius: 3px;
+        }
+        .laptop-screen::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: -4px; right: -4px;
+            height: 6px;
+            background: #c0c0c0;
+            border: 3px solid #1a1a1a;
+            border-top: none;
+            border-radius: 0 0 3px 3px;
+        }
+        .laptop-base {
+            width: 168px;
+            height: 16px;
+            background: #d0d0d0;
+            border: 5px solid #1a1a1a;
+            border-radius: 0 0 6px 6px;
+            margin: -2px auto 0;
+            position: relative;
+        }
+        .laptop-base::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 14px; right: 14px;
+            height: 6px;
+            background: #a0a0a0;
+            border-radius: 0 0 2px 2px;
+        }
+        .laptop-trackpad {
+            width: 55px;
+            height: 6px;
+            background: #a8a8a8;
+            border: 2px solid #1a1a1a;
+            border-radius: 2px;
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        /* ===== 绿植盆栽 ===== */
+        .plant-pot {
+            width: 90px;
+            height: 115px;
+        }
+        .plant-leaves {
+            position: relative;
+            width: 100%;
+            height: 65px;
+        }
+        .leaf {
+            position: absolute;
+            width: 28px;
+            height: 38px;
+            background: #3a9;
+            border: 3px solid #1a1a1a;
+            border-radius: 50% 50% 50% 0;
+        }
+        .leaf:nth-child(1) { left:20px; transform:rotate(-18deg); background:#4cb85c; }
+        .leaf:nth-child(2) { left:36px; transform:rotate(12deg); height:42px; width:30px; background:#3cae4c; z-index:2; }
+        .leaf:nth-child(3) { right:20px; transform:rotate(22deg); background:#4cb85c; }
+        .leaf:nth-child(4) { left:12px; top:10px; transform:rotate(-38deg); height:30px; width:24px; background:#3cae4c; opacity:0.85; }
+
+        .pot-body {
+            width: 70px;
+            height: 50px;
+            background: #e74c3c;
+            border: 4px solid #1a1a1a;
+            border-radius: 0 0 10px 10px;
+            margin: -6px auto 0;
+            position: relative;
+        }
+        .pot-body::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -4px; right: -4px;
+            height: 9px;
+            background: #c0392b;
+            border: 3px solid #1a1a1a;
+            border-radius: 4px;
+        }
+
+        .plant-right {
+            top: 15px;
+            right: 20px;
+        }
+
+        /* ===== 便利贴 ===== */
+        .sticky {
+            top: 20px;
+            left: 25px;
+            width: 90px;
+            height: 90px;
+        }
+        .sticky-note {
+            width: 100%;
+            height: 100%;
+            background: #ffe066;
+            border: 4px solid #1a1a1a;
+            border-radius: 2px;
+            position: relative;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.18);
+            transform: rotate(-4deg);
+        }
+        .sticky-note::before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 0; height: 0;
+            border-left: 20px solid transparent;
+            border-top: 20px solid #d8c8a8;
+            border-right: 20px solid #d8c8a8;
+            border-bottom: 20px solid transparent;
+        }
+        .sticky-lines {
+            position: absolute;
+            top: 18px; left: 10px; right: 10px; bottom: 10px;
+        }
+        .sticky-line {
+            height: 3px;
+            background: #1a1a1a;
+            margin-bottom: 8px;
+            border-radius: 1px;
+            opacity: 0.25;
+        }
+        .sticky-line:nth-child(2) { width: 78%; }
+        .sticky-line:nth-child(3) { width: 58%; }
+
+        /* ===== 黑色智能手机 ===== */
+        .smartphone {
+            bottom: 25px;
+            left: 35px;
+            width: 60px;
+            height: 112px;
+        }
+        .phone-frame-inner {
+            width: 100%;
+            height: 100%;
+            background: #1e1e1e;
+            border: 5px solid #1a1a1a;
+            border-radius: 14px;
+            position: relative;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.25);
+        }
+        .phone-screen {
+            position: absolute;
+            top: 14px; left: 5px; right: 5px; bottom: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 6px;
+            border: 2px solid #1a1a1a;
+        }
+        .phone-home-btn {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 18px;
+            height: 18px;
+            border: 3px solid #1a1a1a;
+            border-radius: 50%;
+            background: #2e2e2e;
+        }
+
+        /* ===== 点击反馈 ===== */
+        .item.clicked {
+            animation: clickBounce 0.25s ease !important;
+        }
+        @keyframes clickBounce {
+            0%, 100% { transform: scale(1) translateY(0); }
+            50% { transform: scale(0.88) translateY(0); }
+        }
+
+        /* ===== 做旧纹理叠加 ===== */
+        .distress-overlay {
+            position: absolute;
+            top:0; left:0; right:0; bottom:0;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.10;
+            background-image:
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+            background-size: 128px 128px;
+            mix-blend-mode: multiply;
+        }
+
+        .hint-text {
+            position: absolute;
+            bottom: 36px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(16px, 4vw, 22px);
+            color: #7a6545;
+            text-align: center;
+            font-weight: bold;
+            letter-spacing: 1px;
+            z-index: 60;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+        }
+
+        /* ============================================================ */
+        /* ===================== 交互弹窗系统 ========================= */
+        /* ============================================================ */
+
+        /* 遮罩层 */
+        .dialog-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.30);
+            z-index: 100;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .dialog-overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
+        /* ---- 纯文本气泡（仿微信对话框 · 美式漫画风） ---- */
+        .text-bubble {
+            position: absolute;
+            background: #f6f2eb;
+            border: 3px solid #1a1a1a;
+            border-radius: 18px;
+            padding: 14px 20px;
+            max-width: 270px;
+            min-width: 210px;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.15);
+            display: none;
+            z-index: 101;
+            animation: bubblePop 0.3s ease;
+        }
+
+        .text-bubble-content {
+            font-size: 15px;
+            line-height: 1.65;
+            color: #2a2a2a;
+            font-weight: bold;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', cursive;
+        }
+
+        /* 气泡底部小三角（指向物件） */
+        .text-bubble-triangle {
+            position: absolute;
+            bottom: -14px;
+            width: 0;
+            height: 0;
+            border-left: 11px solid transparent;
+            border-right: 11px solid transparent;
+            border-top: 14px solid #1a1a1a;
+        }
+
+        .text-bubble-triangle::after {
+            content: '';
+            position: absolute;
+            top: -16px;
+            left: -9px;
+            width: 0;
+            height: 0;
+            border-left: 9px solid transparent;
+            border-right: 9px solid transparent;
+            border-top: 12px solid #f6f2eb;
+        }
+
+        /* 三角朝上（气泡在物件下方时） */
+        .text-bubble-triangle.up {
+            bottom: auto;
+            top: -14px;
+            border-top: none;
+            border-left: 11px solid transparent;
+            border-right: 11px solid transparent;
+            border-bottom: 14px solid #1a1a1a;
+        }
+
+        .text-bubble-triangle.up::after {
+            top: auto;
+            bottom: -16px;
+            border-top: none;
+            border-left: 9px solid transparent;
+            border-right: 9px solid transparent;
+            border-bottom: 12px solid #f6f2eb;
+        }
+
+        @keyframes bubblePop {
+            0% { opacity: 0; transform: scale(0.82) translateY(8px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* ---- 双选弹窗 ---- */
+        .choice-popup {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 100px 20px 300px;
+            z-index: 101;
+            pointer-events: none;
+        }
+
+        .choice-popup.active {
+            display: flex;
+        }
+
+        /* 上方文案气泡 */
+        .choice-bubble {
+            background: #f6f2eb;
+            border: 3px solid #1a1a1a;
+            border-radius: 18px;
+            padding: 18px 26px;
+            max-width: 310px;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.15);
+            pointer-events: auto;
+            animation: bubblePop 0.3s ease;
+        }
+
+        .choice-text {
+            font-size: 15px;
+            line-height: 1.65;
+            color: #2a2a2a;
+            font-weight: bold;
+            text-align: center;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', cursive;
+        }
+
+        /* 下方按钮区 */
+        .choice-buttons {
+            display: flex;
+            gap: 14px;
+            pointer-events: auto;
+            width: 100%;
+            justify-content: center;
+            animation: btnsIn 0.35s ease 0.1s both;
+        }
+
+        @keyframes btnsIn {
+            0% { opacity: 0; transform: translateY(15px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .choice-btn {
+            padding: 12px 18px;
+            background: #f6f2eb;
+            border: 3px solid #1a1a1a;
+            border-radius: 28px;
+            font-size: 13px;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', cursive;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #1a1a1a;
+            font-weight: bold;
+            text-align: center;
+            min-width: 145px;
+            max-width: 165px;
+            line-height: 1.55;
+            box-shadow: 3px 3px 0px rgba(0,0,0,0.13);
+        }
+
+        .choice-btn:hover {
+            background: #fffdf5;
+            transform: translateY(-3px);
+            box-shadow: 4px 7px 0px rgba(0,0,0,0.15);
+        }
+
+        .choice-btn:active {
+            transform: translateY(0);
+            box-shadow: 1px 1px 0px rgba(0,0,0,0.12);
+        }
+
+        /* ── 返回按钮 ── */
+        .back-btn {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            z-index: 200;
+            width: 44px;
+            height: 44px;
+            background: #f6f2eb;
+            border: 3px solid #1a1a1a;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 3px 3px 0px rgba(0,0,0,0.15);
+            transition: all 0.2s ease;
+            font-size: 20px;
+            color: #1a1a1a;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 4px 5px 0px rgba(0,0,0,0.2);
+        }
+        .back-btn:active {
+            transform: translateY(0);
+            box-shadow: 1px 1px 0px rgba(0,0,0,0.12);
+        }
+    </style>
+<link rel="prefetch" href="retro_oil_bg.jpg" as="image">
+<link rel="prefetch" href="molly_avatar.png" as="image">
+<link rel="prefetch" href="sticker1.png" as="image">
+<link rel="prefetch" href="sticker2.png" as="image">
+<link rel="prefetch" href="sticker3.png" as="image">
+</head>
+<body>
+    <!-- 预加载主页面图片，加速返回时加载 -->
+    <div style="display:none" aria-hidden="true">
+      <img src="retro_oil_bg.jpg" alt="">
+      <img src="molly_avatar.png" alt="">
+      <img src="sticker1.png" alt="">
+      <img src="sticker2.png" alt="">
+      <img src="sticker3.png" alt="">
+    </div>
+    <div class="phone-frame">
+        <!-- 返回按钮 -->
+        <a class="back-btn" href="main.html?from=subpage" title="返回">&larr;</a>
+        <div class="kraft-bg">
+            <div class="paper-edge"></div>
+            <div class="corner-fold tl"></div>
+            <div class="corner-fold tr"></div>
+            <div class="corner-fold bl"></div>
+            <div class="corner-fold br"></div>
+            <div class="distress-overlay"></div>
+
+            <!-- 桌面 -->
+            <div class="desk-container">
+                <div class="desk">
+                    <div class="desk-items">
+
+                        <!-- 左上：便利贴 -->
+                        <div class="item sticky float-anim-d2" id="item-sticky" onclick="handleClick('便利贴')">
+                            <div class="sticky-note">
+                                <div class="sticky-lines">
+                                    <div class="sticky-line"></div>
+                                    <div class="sticky-line"></div>
+                                    <div class="sticky-line"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 左下：智能手机 -->
+                        <div class="item smartphone float-anim" id="item-phone" onclick="handleClick('智能手机')">
+                            <div class="phone-frame-inner">
+                                <div class="phone-screen"></div>
+                                <div class="phone-home-btn"></div>
+                            </div>
+                        </div>
+
+                        <!-- 中间偏下：笔记本电脑 -->
+                        <div class="item laptop float-anim-d3" id="item-laptop" onclick="handleClick('笔记本电脑')">
+                            <div class="laptop-screen"></div>
+                            <div class="laptop-base">
+                                <div class="laptop-trackpad"></div>
+                            </div>
+                        </div>
+
+                        <!-- 右上：绿植盆栽 -->
+                        <div class="item plant-pot plant-right float-anim-d1" id="item-plant" onclick="handleClick('绿植盆栽')">
+                            <div class="plant-leaves">
+                                <div class="leaf"></div>
+                                <div class="leaf"></div>
+                                <div class="leaf"></div>
+                                <div class="leaf"></div>
+                            </div>
+                            <div class="pot-body"></div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="hint-text">点击物件互动，点击 ← 返回主页面</div>
+
+            <!-- 交互弹窗系统 -->
+            <div class="dialog-overlay" id="dialogOverlay" onclick="closeDialog()">
+
+                <!-- 纯文本气泡 -->
+                <div class="text-bubble" id="textBubble" onclick="event.stopPropagation()">
+                    <div class="text-bubble-content" id="textBubbleContent"></div>
+                    <div class="text-bubble-triangle" id="textBubbleTriangle"></div>
+                </div>
+
+                <!-- 双选弹窗 -->
+                <div class="choice-popup" id="choicePopup" onclick="event.stopPropagation()">
+                    <div class="choice-bubble">
+                        <div class="choice-text" id="choiceText"></div>
+                    </div>
+                    <div class="choice-buttons" id="choiceButtons"></div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // ── Simple audio system ──
+        var pageAudio = null;
+        function getPageAudio() {
+          if (!pageAudio) { try { pageAudio = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ pageAudio = null; } }
+          if (pageAudio && pageAudio.state === 'suspended') pageAudio.resume();
+          return pageAudio;
+        }
+        document.addEventListener('click', function(){ getPageAudio(); }, {once:true});
+        document.addEventListener('touchstart', function(){ getPageAudio(); }, {once:true});
+        function soundBackClick() {
+          var ctx = getPageAudio(); if (!ctx) return;
+          var osc = ctx.createOscillator(), gain = ctx.createGain();
+          osc.type = 'sine'; osc.frequency.setValueAtTime(660, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.2);
+          gain.gain.setValueAtTime(0.08, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(); osc.stop(ctx.currentTime + 0.3);
+        }
+
+        // Uniform click sound
+        function soundClick() {
+          var ctx = getPageAudio(); if (!ctx) return;
+          var osc = ctx.createOscillator(), gain = ctx.createGain();
+          osc.type = 'sine'; osc.frequency.setValueAtTime(800, ctx.currentTime);
+          gain.gain.setValueAtTime(0.06, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(); osc.stop(ctx.currentTime + 0.1);
+        }
+
+        // Celebration jingle
+        function soundCelebrate() {
+          var ctx = getPageAudio(); if (!ctx) return;
+          var notes = [523, 659, 784, 1047];
+          notes.forEach(function(f, i) {
+            var osc = ctx.createOscillator(), gain = ctx.createGain();
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(f, ctx.currentTime + i * 0.1);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime + i * 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.3);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + i * 0.1); osc.stop(ctx.currentTime + i * 0.1 + 0.35);
+          });
+        }
+
+        // Wire back button sound
+        document.addEventListener('DOMContentLoaded', function(){
+          var btn = document.querySelector('.back-btn');
+          if (btn) btn.addEventListener('click', function(){ soundBackClick(); });
+        });
+
+        const dialogOverlay = document.getElementById('dialogOverlay');
+        const textBubble = document.getElementById('textBubble');
+        const textBubbleContent = document.getElementById('textBubbleContent');
+        const textBubbleTriangle = document.getElementById('textBubbleTriangle');
+        const choicePopup = document.getElementById('choicePopup');
+        const choiceText = document.getElementById('choiceText');
+        const choiceButtons = document.getElementById('choiceButtons');
+        const phoneFrame = document.querySelector('.phone-frame');
+
+        function closeDialog() {
+            dialogOverlay.classList.remove('active');
+            textBubble.style.display = 'none';
+            choicePopup.classList.remove('active');
+        }
+
+        // 显示纯文本气泡（物件上方，往上移）
+        function showTextBubble(elementId, text) {
+            const element = document.getElementById(elementId);
+            textBubbleContent.textContent = text;
+
+            const rect = element.getBoundingClientRect();
+            const frameRect = phoneFrame.getBoundingClientRect();
+
+            const relTop = rect.top - frameRect.top;
+            const relLeft = rect.left - frameRect.left;
+            const relCenter = relLeft + rect.width / 2;
+
+            const bubbleW = 265;
+            const bubbleH = 68;
+
+            // 往上移：间距缩小 + 额外上移10px
+            let bubbleLeft = relCenter - bubbleW / 2;
+            let bubbleTop = relTop - bubbleH - 16; // gap=6 再减10
+            let triangleUp = false;
+
+            // 边界检查
+            if (bubbleLeft < 12) bubbleLeft = 12;
+            if (bubbleLeft + bubbleW > 362) bubbleLeft = 362 - bubbleW;
+
+            // 上方空间不足则放下方
+            if (bubbleTop < 55) {
+                bubbleTop = relTop + rect.height + 10;
+                triangleUp = true;
+            }
+
+            textBubble.style.left = bubbleLeft + 'px';
+            textBubble.style.top = bubbleTop + 'px';
+
+            let triLeft = relCenter - bubbleLeft - 11;
+            triLeft = Math.max(12, Math.min(triLeft, bubbleW - 34));
+            textBubbleTriangle.style.left = triLeft + 'px';
+
+            if (triangleUp) {
+                textBubbleTriangle.classList.add('up');
+            } else {
+                textBubbleTriangle.classList.remove('up');
+            }
+
+            dialogOverlay.classList.add('active');
+            textBubble.style.display = 'block';
+            choicePopup.classList.remove('active');
+        }
+
+        // 显示双选弹窗（按钮往下移）
+        function showChoicePopup(text, btn1Text, btn2Text, onBtn1, onBtn2) {
+            choiceText.textContent = text;
+
+            choiceButtons.innerHTML = '';
+
+            var btn1 = document.createElement('button');
+            btn1.className = 'choice-btn';
+            btn1.textContent = btn1Text;
+            btn1.onclick = function(e) {
+                e.stopPropagation();
+                if (onBtn1) onBtn1();
+                closeDialog();
+            };
+
+            var btn2 = document.createElement('button');
+            btn2.className = 'choice-btn';
+            btn2.textContent = btn2Text;
+            btn2.onclick = function(e) {
+                e.stopPropagation();
+                if (onBtn2) onBtn2();
+                closeDialog();
+            };
+
+            choiceButtons.appendChild(btn1);
+            choiceButtons.appendChild(btn2);
+
+            dialogOverlay.classList.add('active');
+            textBubble.style.display = 'none';
+            choicePopup.classList.add('active');
+        }
+
+        // 物件点击事件
+        function handleClick(name) {
+            var el = event.currentTarget;
+            el.classList.add('clicked');
+            setTimeout(function() { el.classList.remove('clicked'); }, 300);
+
+            if (name === '笔记本电脑') {
+                showChoicePopup(
+                    '策划案抓紧完善，下班前发我邮箱。',
+                    '我不干了！这工作谁想上谁上吧！',
+                    '好的老板，今天下班准时给你。',
+                    function() { soundCelebrate(); },
+                    function() { soundClick(); }
+                );
+            }
+            else if (name === '便利贴') {
+                soundClick();
+                showTextBubble('item-sticky', '房租需缴费，核对水电账单。');
+            }
+            else if (name === '绿植盆栽') {
+                soundClick();
+                showTextBubble('item-plant', '别一直紧绷，抽空放空片刻。');
+            }
+            else if (name === '智能手机') {
+                showChoicePopup(
+                    '好久没回家，什么时候有空回来？',
+                    '我这次过节又不能回去了，有工作。',
+                    '这周末就回去！',
+                    function() { soundClick(); },
+                    function() { soundCelebrate(); }
+                );
+            }
+        }
+    </script>
+</body>
+</html>

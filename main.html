@@ -1,0 +1,2341 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Angry Molly - Main</title>
+<link rel="preload" as="image" href="retro_oil_bg.jpg">
+<link rel="preload" as="image" href="molly_avatar.png">
+<link rel="preload" as="image" href="sticker1.png">
+<link rel="preload" as="image" href="sticker2.png">
+<link rel="preload" as="image" href="sticker3.png">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #000000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+#canvas { display: block; }
+
+/* ── 返回文字跳动 ── */
+.return-bounce-text {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 100;
+  font-family: "YouYuan", "STYuanti", "Comic Sans MS", cursive;
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: bold;
+  color: #FFEE44;
+  text-shadow: -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000, 0 0 20px rgba(255,238,68,0.5);
+  text-align: center; line-height: 1.8;
+  pointer-events: none; opacity: 0;
+}
+.return-bounce-text.show {
+  animation: textJumpIn 2s ease forwards;
+}
+@keyframes textJumpIn {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
+  25% { transform: translate(-50%, -50%) scale(0.9); }
+  35% { transform: translate(-50%, -50%) scale(1.1); }
+  45% { transform: translate(-50%, -50%) scale(0.95); }
+  55% { transform: translate(-50%, -50%) scale(1.03); }
+  65% { transform: translate(-50%, -50%) scale(1); }
+  85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div class="return-bounce-text" id="returnBounceText">做得很好！<br>继续探索吧~</div>
+<script>
+// ═══════════════════════════════════════════════════
+// AUDIO SYSTEM - Web Audio API synthesized sounds
+// ═══════════════════════════════════════════════════
+var audioCtx = null;
+var cheerfulLoop = false; // 唱片音乐循环标志
+function getAudioCtx() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(e) { audioCtx = null; }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+// Unlock audio on first user interaction
+document.addEventListener('touchstart', function() { getAudioCtx(); }, { once: true });
+document.addEventListener('click', function() { getAudioCtx(); }, { once: true });
+
+function soundOsc(type, freq, duration, vol, rampDown) {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  gain.gain.setValueAtTime(vol || 0.12, ctx.currentTime);
+  if (rampDown) {
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  } else {
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
+  }
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(ctx.currentTime); osc.stop(ctx.currentTime + duration);
+}
+
+// ═══════════════════════════════════════════════════
+// "Biu" sound — laser/whoosh effect for sticker click
+// ═══════════════════════════════════════════════════
+function soundBiu() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var t = ctx.currentTime;
+
+  // Main "biu": high-frequency sliding tone
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(2000, t);
+  osc.frequency.exponentialRampToValueAtTime(500, t + 0.12);
+  gain.gain.setValueAtTime(0.18, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.18);
+
+  // "Whoosh" noise burst
+  setTimeout(function() {
+    var buf = ctx.createBuffer(1, ctx.sampleRate * 0.06, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < data.length; i++) {
+      data[i] = (Math.random() - 0.5) * Math.pow(1 - i / data.length, 2.5) * 0.25;
+    }
+    var src = ctx.createBufferSource(); src.buffer = buf;
+    var g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.05, ctx.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    var hp = ctx.createBiquadFilter();
+    hp.type = 'bandpass';
+    hp.frequency.setValueAtTime(3000, ctx.currentTime);
+    hp.Q.setValueAtTime(2, ctx.currentTime);
+    src.connect(hp); hp.connect(g2); g2.connect(ctx.destination);
+    src.start(); src.stop(ctx.currentTime + 0.1);
+  }, 20);
+}
+
+// Bright pop — sticker click (legacy, replaced by soundBiu)
+function soundStickerClick() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var t = ctx.currentTime;
+  // Two quick notes for a "ding-ding" feel
+  [0, 0.06].forEach(function(d) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880 + d * 300, t + d);
+    osc.frequency.exponentialRampToValueAtTime(660, t + d + 0.15);
+    gain.gain.setValueAtTime(0.15, t + d);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + d + 0.18);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + d); osc.stop(t + d + 0.2);
+  });
+  // Noise burst for "pop" texture
+  setTimeout(function() {
+    var buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < data.length; i++) { data[i] = (Math.random() - 0.5) * 0.3; }
+    var src = ctx.createBufferSource(); src.buffer = buf;
+    var g = ctx.createGain(); g.gain.setValueAtTime(0.08, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+    src.connect(g); g.connect(ctx.destination); src.start();
+  }, 30);
+}
+
+// ═══════════════════════════════════════════════════
+// Pop Mart style cheerful song - all stickers done
+// Pentatonic scale melody with chord pads & percussion
+// ═══════════════════════════════════════════════════
+function soundAllDoneCheerful() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var t = ctx.currentTime;
+  var bpm = 165;
+  var beat = 60 / bpm; // ~0.364s per beat
+  var eighth = beat / 2;
+
+  // Pentatonic scale notes (C pentatonic: C D E G A)
+  var notes = {
+    C4: 261.63, D4: 293.66, E4: 329.63, G4: 392.00, A4: 440.00,
+    C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880.00,
+    C6: 1046.5
+  };
+
+  // Helper: play a single note
+  function note(freq, start, dur, vol, type) {
+    type = type || 'triangle';
+    vol = vol || 0.1;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t + start);
+    // Subtle vibrato on longer notes
+    if (dur > 0.2) {
+      osc.frequency.setValueAtTime(freq * 1.005, t + start + dur * 0.3);
+      osc.frequency.setValueAtTime(freq, t + start + dur * 0.6);
+    }
+    gain.gain.setValueAtTime(vol, t + start);
+    gain.gain.setValueAtTime(vol, t + start + dur * 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + start + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + start); osc.stop(t + start + dur + 0.05);
+  }
+
+  // Helper: chord (multiple notes at once)
+  function chord(freqs, start, dur, vol, type) {
+    vol = vol || 0.04;
+    type = type || 'sine';
+    freqs.forEach(function(f) {
+      note(f, start, dur, vol, type);
+    });
+  }
+
+  // ── Percussion: simple kick drum ──
+  function kick(at, vol) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    vol = vol || 0.08;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, t + at);
+    osc.frequency.exponentialRampToValueAtTime(40, t + at + 0.1);
+    gain.gain.setValueAtTime(vol, t + at);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + at + 0.18);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t + at); osc.stop(t + at + 0.2);
+  }
+
+  // ── Percussion: snare/click ──
+  function snare(at, vol) {
+    vol = vol || 0.03;
+    var bufLen = ctx.sampleRate * 0.08;
+    var buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < data.length; i++) {
+      data[i] = (Math.random() - 0.5) * 2 * Math.pow(1 - i / data.length, 2);
+    }
+    var src = ctx.createBufferSource(); src.buffer = buf;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t + at);
+    g.gain.exponentialRampToValueAtTime(0.001, t + at + 0.08);
+    var hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.setValueAtTime(3000, t + at);
+    src.connect(hp); hp.connect(g); g.connect(ctx.destination);
+    src.start(t + at); src.stop(t + at + 0.1);
+  }
+
+  // ── Percussion: hi-hat (tick) ──
+  function hihat(at, vol) {
+    vol = vol || 0.015;
+    var bufLen = ctx.sampleRate * 0.04;
+    var buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < data.length; i++) {
+      data[i] = (Math.random() - 0.5) * 2 * Math.pow(1 - i / data.length, 3);
+    }
+    var src = ctx.createBufferSource(); src.buffer = buf;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t + at);
+    g.gain.exponentialRampToValueAtTime(0.001, t + at + 0.03);
+    var hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.setValueAtTime(8000, t + at);
+    src.connect(hp); hp.connect(g); g.connect(ctx.destination);
+    src.start(t + at); src.stop(t + at + 0.05);
+  }
+
+  // ═══ SONG STRUCTURE (8 bars × 4 beats, ~11.6s total) ═══
+  var bar = beat * 4; // 1 bar = 4 beats
+
+  // ── Bar 0: Intro rising arpeggio + kick drum ──
+  var intro = 0;
+  chord([notes.C4, notes.E4, notes.G4], intro, bar, 0.06, 'sine');
+  note(notes.C4, intro, eighth, 0.12);
+  note(notes.E4, intro + eighth, eighth, 0.12);
+  note(notes.G4, intro + eighth * 2, eighth, 0.12);
+  note(notes.C5, intro + eighth * 3, eighth, 0.12);
+  note(notes.E5, intro + eighth * 4, eighth * 2, 0.13);
+  kick(intro, 0.1); kick(intro + beat * 2, 0.08);
+  hihat(intro + eighth); hihat(intro + eighth * 3); hihat(intro + eighth * 5); hihat(intro + eighth * 7);
+
+  // ── Bars 1-2: Main melody "A" section ──
+  var s1 = intro + bar;
+  // Melody: E4 G4 A4 G4 | E4 C5 A4 G4 | E4 D4 E4 G4 | A4 G4 E4 D4
+  note(notes.E4, s1, eighth, 0.14);            // E
+  note(notes.G4, s1 + eighth, eighth, 0.14);   // G
+  note(notes.A4, s1 + eighth * 2, eighth, 0.15);// A
+  note(notes.G4, s1 + eighth * 3, eighth, 0.14);// G
+  note(notes.E4, s1 + eighth * 4, eighth, 0.14);// E
+  note(notes.C5, s1 + eighth * 5, eighth, 0.15);// C5
+  note(notes.A4, s1 + eighth * 6, eighth, 0.13);// A
+  note(notes.G4, s1 + eighth * 7, eighth, 0.12);// G
+
+  note(notes.E4, s1 + bar, eighth, 0.14);
+  note(notes.D4, s1 + bar + eighth, eighth, 0.13);
+  note(notes.E4, s1 + bar + eighth * 2, eighth * 2, 0.15);
+  note(notes.G4, s1 + bar + eighth * 4, eighth, 0.14);
+  note(notes.A4, s1 + bar + eighth * 5, eighth, 0.14);
+  note(notes.G4, s1 + bar + eighth * 6, eighth, 0.12);
+  note(notes.E4, s1 + bar + eighth * 7, eighth * 2, 0.13);
+
+  // Chord pads for bars 1-2
+  chord([notes.C4, notes.G4], s1, bar * 0.8, 0.03, 'sine');
+  chord([notes.A3, notes.E4], s1 + bar * 0.5, bar * 0.4, 0.03, 'sine');
+  chord([notes.C4, notes.G4], s1 + bar, bar * 0.8, 0.03, 'sine');
+
+  // Percussion bars 1-2
+  for (var b = 0; b < 8; b++) {
+    kick(s1 + b * beat, b === 0 ? 0.08 : 0.05);
+    hihat(s1 + b * beat + eighth, 0.012);
+    snare(s1 + b * beat + beat, b % 2 === 0 ? 0.04 : 0.03);
+  }
+
+  // ── Bars 3-4: Melody "B" section ──
+  var s2 = s1 + bar * 2;
+  // Melody: C5 A4 G4 E4 | D4 E4 G4 E4 | A4 G4 E4 C5 | A4 G4 E4 -
+  note(notes.C5, s2, eighth, 0.15);
+  note(notes.A4, s2 + eighth, eighth, 0.14);
+  note(notes.G4, s2 + eighth * 2, eighth, 0.13);
+  note(notes.E4, s2 + eighth * 3, eighth, 0.12);
+  note(notes.D4, s2 + eighth * 4, eighth, 0.13);
+  note(notes.E4, s2 + eighth * 5, eighth, 0.14);
+  note(notes.G4, s2 + eighth * 6, eighth, 0.14);
+  note(notes.E4, s2 + eighth * 7, eighth * 2, 0.15);
+
+  note(notes.A4, s2 + bar, eighth, 0.14);
+  note(notes.G4, s2 + bar + eighth, eighth, 0.13);
+  note(notes.E4, s2 + bar + eighth * 2, eighth, 0.12);
+  note(notes.C5, s2 + bar + eighth * 3, eighth, 0.14);
+  note(notes.A4, s2 + bar + eighth * 4, eighth, 0.13);
+  note(notes.G4, s2 + bar + eighth * 5, eighth, 0.12);
+  note(notes.E4, s2 + bar + eighth * 6, beat, 0.14);
+  note(notes.D4, s2 + bar + eighth * 7, eighth, 0.1);
+
+  // Chord pads for bars 3-4
+  chord([notes.F3, notes.C4], s2, bar * 1.5, 0.03, 'sine');
+  chord([notes.C4, notes.E4], s2 + bar, bar * 1.5, 0.03, 'sine');
+
+  // Percussion bars 3-4
+  for (var b2 = 0; b2 < 8; b2++) {
+    kick(s2 + b2 * beat, b2 === 0 ? 0.08 : 0.05);
+    hihat(s2 + b2 * beat + eighth, 0.012);
+    snare(s2 + b2 * beat + beat, b2 % 2 === 0 ? 0.04 : 0.03);
+  }
+
+  // ── Bars 5-6: Melody "A'" variation with harmony ──
+  var s3 = s2 + bar * 2;
+  // Main melody (triangle) + harmony (sine, softer)
+  var melA = [
+    [notes.E5, 0], [notes.D5, 1], [notes.C5, 2], [notes.A4, 3],
+    [notes.G4, 4], [notes.E4, 5], [notes.D4, 6], [notes.E4, 7],
+    [notes.G4, 8], [notes.A4, 9], [notes.G4, 10], [notes.E4, 11],
+    [notes.C5, 12], [notes.A4, 13], [notes.G4, 14], [notes.E4, 16]
+  ];
+  melA.forEach(function(m) {
+    note(m[0], s3 + m[1] * eighth, eighth * 0.9, 0.13);
+  });
+
+  // Harmony line (3rds below)
+  var harmA = [
+    [notes.C5, 0], [notes.B4, 1], [notes.A4, 2], [notes.F4, 3],
+    [notes.E4, 4], [notes.C4, 5], [notes.B3, 6], [notes.C4, 7],
+    [notes.E4, 8], [notes.F4, 9], [notes.E4, 10], [notes.C4, 11],
+    [notes.A4, 12], [notes.F4, 13], [notes.E4, 14], [notes.G4, 16]
+  ];
+  harmA.forEach(function(h) {
+    note(h[0], s3 + h[1] * eighth, eighth * 0.9, 0.06, 'sine');
+  });
+
+  // Chord pads bars 5-6
+  chord([notes.C4, notes.E4, notes.G4], s3, bar * 1.5, 0.04, 'sine');
+  chord([notes.A3, notes.C4, notes.E4], s3 + bar, bar * 1.5, 0.04, 'sine');
+
+  // Percussion bars 5-6 (more energetic)
+  for (var b3 = 0; b3 < 8; b3++) {
+    kick(s3 + b3 * beat, b3 % 2 === 0 ? 0.09 : 0.06);
+    hihat(s3 + b3 * beat + eighth, 0.015);
+    hihat(s3 + b3 * beat + eighth * 3, 0.012);
+    snare(s3 + b3 * beat + beat, 0.04);
+  }
+
+  // ── Bars 7-8: Finale - triumphant ending ──
+  var s4 = s3 + bar * 2;
+  // Rising sequence
+  note(notes.E4, s4, eighth, 0.14);
+  note(notes.G4, s4 + eighth, eighth, 0.14);
+  note(notes.A4, s4 + eighth * 2, eighth, 0.15);
+  note(notes.C5, s4 + eighth * 3, eighth, 0.15);
+  note(notes.D5, s4 + eighth * 4, eighth, 0.14);
+  note(notes.C5, s4 + eighth * 5, eighth, 0.14);
+  note(notes.A4, s4 + eighth * 6, eighth, 0.13);
+  note(notes.G4, s4 + eighth * 7, eighth, 0.13);
+
+  note(notes.E4, s4 + bar, eighth, 0.13);
+  note(notes.D4, s4 + bar + eighth, eighth, 0.12);
+  note(notes.C4, s4 + bar + eighth * 2, eighth, 0.11);
+  note(notes.D4, s4 + bar + eighth * 3, eighth * 2, 0.12);
+  note(notes.C4, s4 + bar + eighth * 5, beat, 0.14);
+
+  // Grand final chord
+  chord([notes.C4, notes.E4, notes.G4, notes.C5], s4 + bar + eighth * 6, bar * 0.7, 0.07, 'triangle');
+  note(notes.C5, s4 + bar + eighth * 6, bar * 0.7, 0.12);
+  // Sparkle: high notes
+  note(notes.E5, s4 + bar + eighth * 6 + 0.05, bar * 0.6, 0.06, 'sine');
+  note(notes.G5, s4 + bar + eighth * 6 + 0.1, bar * 0.5, 0.05, 'sine');
+  note(notes.C6, s4 + bar + eighth * 6 + 0.15, bar * 0.4, 0.04, 'sine');
+
+  // Chord pads bars 7-8
+  chord([notes.C4, notes.G4], s4, bar * 1.8, 0.04, 'sine');
+  chord([notes.C4, notes.E4, notes.G4], s4 + bar, bar * 2, 0.05, 'triangle');
+
+  // Percussion bars 7-8
+  for (var b4 = 0; b4 < 8; b4++) {
+    kick(s4 + b4 * beat, b4 % 2 === 0 ? 0.09 : 0.06);
+    hihat(s4 + b4 * beat + eighth, 0.018);
+    hihat(s4 + b4 * beat + eighth * 3, 0.014);
+    snare(s4 + b4 * beat + beat, b4 % 2 === 0 ? 0.05 : 0.03);
+  }
+  // Final big kick
+  kick(s4 + bar + eighth * 6, 0.12);
+
+  // Loop: re-trigger after song ends (~12s)
+  if (cheerfulLoop) {
+    setTimeout(function() {
+      if (cheerfulLoop) soundAllDoneCheerful();
+    }, 12000);
+  }
+}
+
+// Warm success chord — all stickers done (legacy, now replaced by cheerful song)
+function soundAllDone() {
+  cheerfulLoop = true;
+  soundAllDoneCheerful();
+}
+
+// Vinyl spin whoosh
+function soundSpin() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.5);
+  gain.gain.setValueAtTime(0.04, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+  var filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.setValueAtTime(1000, ctx.currentTime);
+  filter.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.5);
+  osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+  osc.start(); osc.stop(ctx.currentTime + 0.7);
+}
+
+// Typewriter tick
+function soundTypeTick() {
+  soundOsc('sine', 1200 + Math.random() * 300, 0.03, 0.06, true);
+}
+
+// Page transition
+function soundTransition() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(440, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
+  gain.gain.setValueAtTime(0.08, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(); osc.stop(ctx.currentTime + 0.4);
+}
+
+// Bounce text appear
+function soundBounce() {
+  var ctx = getAudioCtx(); if (!ctx) return;
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(600, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.25);
+  gain.gain.setValueAtTime(0.1, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(); osc.stop(ctx.currentTime + 0.3);
+}
+
+// ═══════════════════════════════════════════════════
+// ANGRY MOLLY - MAIN PAGE
+// American Retro Comic Style + Vinyl Record
+// 1080×1920 | Comic halftone, speed lines, pop art
+// ═══════════════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = 1080, H = 1920;
+canvas.width = W; canvas.height = H;
+
+function resize() {
+  const r = W / H;
+  let vw = window.innerWidth, vh = window.innerHeight;
+  if (vw / vh > r) { vw = vh * r; } else { vh = vw / r; }
+  canvas.style.width = vw + 'px';
+  canvas.style.height = vh + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Comic Color Palette
+const C = {
+  bg: '#E82020',
+  black: '#0A0A0A',
+  ink: '#000000',
+  white: '#FFFFFF',
+  cream: '#F0D88A',
+  yellow: '#FFE030',
+  orangeY: '#FFAA20',
+  orange: '#FF5510',
+  deepRed: '#CC1020',
+  brightYellow: '#FFEE44',
+  blue: '#2288CC',
+};
+
+// ═══════════════════════════════════════════════════
+// PRE-RENDERED HALFTONE CACHE (avoids 6000+ arc calls/frame)
+// ═══════════════════════════════════════════════════
+let halftoneCache = null;
+function buildHalftoneCache() {
+  var hc = document.createElement('canvas');
+  hc.width = W; hc.height = H;
+  var hctx = hc.getContext('2d');
+  var dotSize = 1.5, spacing = 18;
+  hctx.fillStyle = C.ink;
+  for (var ry = 0; ry < H; ry += spacing) {
+    var rowOff = Math.floor(ry / spacing) % 2 === 0 ? 0 : spacing * 0.5;
+    for (var rx = rowOff; rx < W; rx += spacing) {
+      hctx.beginPath();
+      hctx.arc(rx, ry, dotSize, 0, Math.PI * 2);
+      hctx.fill();
+    }
+  }
+  halftoneCache = hc;
+}
+buildHalftoneCache();
+
+// ═══════════════════════════════════════════════════
+// IMAGE LOADING - robust with error handling
+// ═══════════════════════════════════════════════════
+const bgImg = new Image();
+const stickerImg = new Image();
+const sticker2Img = new Image();
+const sticker3Img = new Image();
+const mollyAvatarImg = new Image();
+
+// Track loading state
+let imagesReady = { bg: false, s1: false, s2: false, s3: false, avatar: false };
+let allImagesReady = false;
+
+function checkAllReady() {
+  allImagesReady = imagesReady.bg && imagesReady.s1 && imagesReady.s2 && imagesReady.s3 && imagesReady.avatar;
+}
+
+function onImgLoad(key) {
+  imagesReady[key] = true;
+  checkAllReady();
+  // Build masks and caches for stickers
+  if (key === 's1') { buildStickerMasks(stickerImg, 's1'); buildGrayCache('s1', stickerImg, 240); }
+  if (key === 's2') { buildStickerMasks(sticker2Img, 's2'); buildGrayCache('s2', sticker2Img, 195); }
+  if (key === 's3') { buildStickerMasks(sticker3Img, 's3'); buildGrayCache('s3', sticker3Img, 240); }
+  if (key === 'avatar') { buildGrayCache('avatar', mollyAvatarImg, 130); }
+}
+
+bgImg.onload = function() { onImgLoad('bg'); };
+bgImg.onerror = function() { console.warn('bgImg load failed'); onImgLoad('bg'); };
+bgImg.src = 'retro_oil_bg.jpg';
+
+stickerImg.onload = function() { onImgLoad('s1'); };
+stickerImg.onerror = function() { console.warn('sticker1 load failed'); onImgLoad('s1'); };
+stickerImg.src = 'sticker1.png';
+
+sticker2Img.onload = function() { onImgLoad('s2'); };
+sticker2Img.onerror = function() { console.warn('sticker2 load failed'); onImgLoad('s2'); };
+sticker2Img.src = 'sticker2.png';
+
+sticker3Img.onload = function() { onImgLoad('s3'); };
+sticker3Img.onerror = function() { console.warn('sticker3 load failed'); onImgLoad('s3'); };
+sticker3Img.src = 'sticker3.png';
+
+mollyAvatarImg.onload = function() { onImgLoad('avatar'); };
+mollyAvatarImg.onerror = function() { console.warn('mollyAvatar load failed'); onImgLoad('avatar'); };
+mollyAvatarImg.src = 'molly_avatar.png';
+
+// Sticker Outline Masks (contour-following)
+const stickerMasks = {};
+
+function createOutlineMask(img, color, scale) {
+  const oc = document.createElement('canvas');
+  const octx = oc.getContext('2d');
+  const w = Math.ceil(img.naturalWidth * scale);
+  const h = Math.ceil(img.naturalHeight * scale);
+  oc.width = w;
+  oc.height = h;
+  octx.drawImage(img, 0, 0, w, h);
+  octx.globalCompositeOperation = 'source-in';
+  octx.fillStyle = color;
+  octx.fillRect(0, 0, w, h);
+  return oc;
+}
+
+function buildStickerMasks(img, key) {
+  if (!img.complete || !img.naturalWidth) return;
+  stickerMasks[key] = {
+    black: createOutlineMask(img, '#000000', 1.07),
+    white: createOutlineMask(img, '#FFFFFF', 1.035),
+    gray: createOutlineMask(img, '#888888', 1.0)
+  };
+}
+
+// ═══════════════════════════════════════════════════
+// PRE-CACHED GRAYSCALE STICKER CANVASES
+// (avoid creating offscreen canvas every frame)
+// ═══════════════════════════════════════════════════
+const grayStickerCache = {};
+
+function buildGrayCache(key, img, size) {
+  if (!img.complete || !img.naturalWidth) return;
+  const masks = stickerMasks[key];
+  if (!masks) return;
+
+  const s = size;
+  const half = s / 2;
+  const oc = document.createElement('canvas');
+  oc.width = Math.ceil(s * 1.3);
+  oc.height = Math.ceil(s * 1.3);
+  const octx = oc.getContext('2d');
+  const off = oc.width / 2;
+
+  // Black outline
+  const bmS = s * 1.10;
+  const blackOffsets = [[-2,-2],[2,-2],[-2,2],[2,2],[0,-2],[0,2],[-2,0],[2,0]];
+  blackOffsets.forEach(function(o) {
+    octx.drawImage(masks.black, off - bmS/2 + o[0]*1.5, off - bmS/2 + o[1]*1.5, bmS, bmS);
+  });
+  // White outline
+  const whiteS = s * 1.035;
+  octx.drawImage(masks.white, off - whiteS/2, off - whiteS/2, whiteS, whiteS);
+  // Gray fill (desaturated image)
+  octx.save();
+  try { octx.filter = 'grayscale(100%) brightness(0.75)'; } catch(e) {}
+  octx.drawImage(img, off - half, off - half, s, s);
+  octx.restore();
+
+  grayStickerCache[key] = { canvas: oc, off: off };
+}
+
+// ═══════════════════════════════════════════════════
+// ACTIVATION SYSTEM STATE
+// ═══════════════════════════════════════════════════
+// Sticker order: 0=sticker1(便利贴→office), 1=sticker2(镜子→mirror), 2=sticker3(画笔→dream-studio)
+// Click order: 0→2→1 (counterclockwise), vinyl spins clockwise ~120°
+const STICKER_COUNT = 3;
+const activatedStickers = [false, false, false];
+let currentTargetIndex = 0;
+let allActivated = false;
+let isSpinningToNext = false;
+let showChineseTitle = true; // Show Chinese phrase from the start
+
+// ── Restore state from sessionStorage (returning from sub-pages) ──
+try {
+  var savedFromSubpage = sessionStorage.getItem('molly_from_subpage');
+  if (savedFromSubpage === '1') {
+    var savedActivated = sessionStorage.getItem('molly_activated');
+    var savedTarget = sessionStorage.getItem('molly_target');
+    if (savedActivated) {
+      var parsed = JSON.parse(savedActivated);
+      for (var si = 0; si < STICKER_COUNT; si++) {
+        activatedStickers[si] = !!parsed[si];
+      }
+    }
+    if (savedTarget !== null) {
+      currentTargetIndex = parseInt(savedTarget, 10);
+    }
+    var pendingFinal = sessionStorage.getItem('molly_pending_final');
+    if (activatedStickers.every(function(v) { return v; }) && pendingFinal !== '1') {
+      allActivated = true;
+    }
+    sessionStorage.removeItem('molly_activated');
+    sessionStorage.removeItem('molly_target');
+    sessionStorage.removeItem('molly_from_subpage');
+    window.__molly_restoreSpin = currentTargetIndex;
+  }
+} catch(e) {}
+let spinStartAngle = 0;
+let spinTargetAngle = 0;
+let vinylAngle = 0;
+
+// ── Return bounce text from sub-pages ──
+(function() {
+  var qs = new URLSearchParams(window.location.search);
+  var fp = qs.get('from') || '';
+  if (fp === 'subpage') {
+    showChineseTitle = true; // Chinese phrase visible only after returning
+
+    // Spawn "加油" pop text after spin completes (~1200 + 300ms buffer)
+    var lastActivated = sessionStorage.getItem('molly_last_activated');
+    sessionStorage.removeItem('molly_last_activated');
+
+    // Skip bounce text when returning from dream-studio (sticker index 2)
+    var skipBounce = (lastActivated === '2');
+
+    if (!skipBounce) {
+      var el = document.getElementById('returnBounceText');
+      setTimeout(function() { el.classList.add('show'); soundBounce(); }, 500);
+      setTimeout(function() { el.classList.remove('show'); }, 2800);
+    }
+
+    if (lastActivated !== null) {
+      var laIdx = parseInt(lastActivated, 10);
+      setTimeout(function() {
+        var worldPos = getStickerWorldPos(laIdx);
+        var allDone = activatedStickers.every(function(v) { return v; });
+        spawnClickText(worldPos.x, worldPos.y, allDone);
+      }, 1500); // after spin animation finishes
+    }
+
+    // Deferred celebration: mirror (sticker 1) was last → trigger after return
+    if (pendingFinal === '1') {
+      sessionStorage.removeItem('molly_pending_final');
+      setTimeout(function() {
+        allActivated = true;
+        soundAllDone();
+      }, 2200); // after spin + bounce + click text settles
+    }
+  }
+})();
+
+// ═══════════════════════════════════════════════════
+// MOLLY AVATAR STATE
+// ═══════════════════════════════════════════════════
+let avatarActivated = false;
+let avatarDialogText = '';
+let avatarDialogTime = 0;   // when dialog started (Date.now)
+let avatarDialogDuration = 6000; // ms
+const avatarX = W * 0.14;
+const avatarY = H * 0.21;
+const avatarSize = 130;
+let allActivatedJustHappened = false; // flag for one-time auto-dialog on full activation
+
+// ═══════════════════════════════════════════════════
+// DYNAMIC PHRASE SYSTEM + TYPEWRITER EFFECT
+// ═══════════════════════════════════════════════════
+const PHRASES = [
+  '在办公室里，你可以拒绝无底线的压榨，\n对不合理的要求说不，随心表达情绪，自在向前走。',
+  '在画室里，你可以不惧追梦路上的挫折，\n大胆向热爱奔赴，别被自我怀疑困住，\n你笔下的每一笔都值得被看见。',  // 办公室：2行
+  '在镜子前，你可以放下对自己的苛刻评判，\n接纳不完美的模样，不必活在别人的眼光里，\n真实的你本身就足够耀眼',  // 画室：3行
+];
+
+const FINAL_PHRASE_LINE1 = '\u4f60\u503c\u5f97\u88ab\u7231';           // 你值得被爱
+const FINAL_PHRASE_LINE2 = 'molly\u6c38\u8fdc\u966a\u7740\u4f60'; // molly永远陪着你
+
+let currentPhraseIndex = 0; // 0=initial, 1=after 1st spin
+
+// Typewriter state for dynamic phrases (faster)
+const PHRASE_TYPE_SPEED = 55; // ms per character (fast)
+let phraseTypeStartTime = 0;
+let phraseLastIndex = -1; // detect phrase change to restart typewriter
+
+// Typewriter state for final phrase
+let typewriterActive = false;
+let typewriterStartTime = 0;
+let typewriterCharIndex = 0;
+let typewriterTotalChars = 0;
+const TYPE_SPEED = 130; // ms per character (slower)
+const TYPE_DELAY_AFTER_COMPLETE = 2500; // 2.5s before redirect
+
+function getPhraseIndex() {
+  if (allActivated) return -1; // use typewriter instead
+  const count = activatedStickers.filter(function(v) { return v; }).length;
+  if (count === 0) return 0;
+  if (count === 1) return 1;
+  if (count === 2) return 2;
+  return -1;
+}
+
+// Start typewriter when allActivated first becomes true
+let prevAllActivated = false;
+
+function checkTypewriterStart() {
+  if (allActivated && !prevAllActivated && !typewriterActive) {
+    typewriterActive = true;
+    typewriterStartTime = Date.now();
+    typewriterCharIndex = 0;
+    typewriterTotalChars = FINAL_PHRASE_LINE1.length + FINAL_PHRASE_LINE2.length;
+  }
+  prevAllActivated = allActivated;
+  // NOTE: redirect is handled exclusively by setTimeout in handleClick, not here
+}
+
+function drawDynamicPhrase(ctx, time) {
+  var px = W / 2;
+  var py = H * 0.24;
+
+  if (typewriterActive) {
+    // Typewriter animation: show characters one by one
+    var elapsed = Date.now() - typewriterStartTime;
+    var shownChars = Math.floor(elapsed / TYPE_SPEED);
+    shownChars = Math.min(shownChars, typewriterTotalChars);
+
+    var line1Len = FINAL_PHRASE_LINE1.length;
+    var line1End = Math.min(shownChars, line1Len);
+    var line1Text = FINAL_PHRASE_LINE1.substring(0, line1End);
+
+    var line2Start = Math.max(0, shownChars - line1Len);
+    var line2End = Math.min(line2Start, FINAL_PHRASE_LINE2.length);
+    var line2Text = FINAL_PHRASE_LINE2.substring(0, line2End);
+
+    // Line 1 (Chinese font: bold simplified)
+    drawTypewriterText(ctx, line1Text, px, py - 32, 54, C.cream, 8);
+    // Line 2 (Chinese font, "molly" not bold)
+    if (shownChars > line1Len) {
+      drawTypewriterText(ctx, line2Text, px, py + 36, 46, C.cream, 7, true); // hasEnglish = true
+    }
+
+    // Blinking cursor at end
+    if (shownChars < typewriterTotalChars && Math.floor(time * 3) % 2 === 0) {
+      ctx.save();
+      var cursorX = px + (shownChars < line1Len ? line1End * 28 : line2End * 24);
+      var cursorY = shownChars < line1Len ? py - 32 : py + 36;
+      ctx.fillStyle = C.cream;
+      ctx.fillRect(cursorX, cursorY - 18, 4, 36);
+      ctx.restore();
+    }
+  } else {
+    // Normal phrase display — multi-line with fast typewriter effect
+    // Only show after returning from sub-page
+    if (!showChineseTitle) return;
+    var idx = getPhraseIndex();
+    currentPhraseIndex = idx;
+    if (idx >= 0) {
+      // Detect phrase change → restart typewriter
+      if (phraseLastIndex !== idx) {
+        phraseLastIndex = idx;
+        phraseTypeStartTime = Date.now();
+      }
+      var phraseText = PHRASES[idx];
+      // Split into manual lines by \n
+      var phraseLines = phraseText.split('\n');
+      var pElapsed = Date.now() - phraseTypeStartTime;
+      var pTotalChars = phraseText.length; // includes \n chars
+      var pShownChars = Math.min(Math.floor(pElapsed / PHRASE_TYPE_SPEED), pTotalChars);
+
+      // Determine how many characters per line to show
+      var charCount = 0;
+      var lineStartY = py - ((phraseLines.length - 1) * 78) / 2 - 20; // center vertically, shift up slightly
+      var fontSizeMulti = phraseLines.length > 2 ? 42 : (phraseLines.length > 1 ? 42 : 54);
+      var outlineW = phraseLines.length > 2 ? 5 : 7;
+
+      for (var li = 0; li < phraseLines.length; li++) {
+        var lineTxt = phraseLines[li];
+        var lineChars = lineTxt.length;
+        var lineEndChar = charCount + lineChars; // not counting \n
+
+        if (pShownChars > charCount) {
+          // This line has started showing
+          var showInLine = Math.min(pShownChars - charCount, lineChars);
+          var displayLine = lineTxt.substring(0, showInLine);
+          drawComicText(ctx, displayLine, px, lineStartY + li * 78, fontSizeMulti, C.cream, outlineW);
+        }
+
+        charCount += lineChars + 1; // +1 for \n
+      }
+
+      // Blinking cursor at end of current position
+      if (pShownChars < pTotalChars && Math.floor(time * 4) % 2 === 0) {
+        ctx.save();
+        ctx.font = 'bold ' + fontSizeMulti + 'px "YouYuan", "STYuanti", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Find which line the cursor is on
+        var cursorCharCount = 0;
+        var cursorLi = 0;
+        for (var cli = 0; cli < phraseLines.length; cli++) {
+          var cclen = phraseLines[cli].length;
+          if (pShownChars <= cursorCharCount + cclen) {
+            cursorLi = cli;
+            break;
+          }
+          cursorCharCount += cclen + 1;
+        }
+        var cursorInLine = pShownChars - cursorCharCount;
+        var cursorBefore = phraseLines[cursorLi].substring(0, cursorInLine);
+        ctx.font = fontSizeMulti + 'px "YouYuan", "STYuanti", "HuaWenYuTi", sans-serif';
+        var cw = ctx.measureText(cursorBefore).width;
+        ctx.fillStyle = C.cream;
+        ctx.fillRect(px + cw / 2 + 3, lineStartY + cursorLi * 78 - fontSizeMulti * 0.35, 3, fontSizeMulti * 0.7);
+        ctx.restore();
+      }
+    }
+  }
+}
+
+// ── Typewriter Text: Chinese Simplified Font + Optional Non-Bold English ──
+function drawTypewriterText(ctx, text, x, y, fontSize, fontColor, outlineWidth, hasNonBoldEnglish) {
+  ctx.save();
+  // Chinese simplified font stack (bold)
+  ctx.font = 'bold ' + fontSize + 'px "YouYuan", "STYuanti", "HuaWenYuTi", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+
+  if (hasNonBoldEnglish) {
+    // Draw in parts: Chinese text bold + English ("molly") non-bold
+    var mollyIdx = text.indexOf('molly');
+    if (mollyIdx >= 0) {
+      // Part before "molly" — Chinese bold
+      var partBefore = text.substring(0, mollyIdx);
+      var partMolly = 'molly';
+      var partAfter = text.substring(mollyIdx + 5);
+
+      // Measure total width for centering
+      ctx.font = 'bold ' + fontSize + 'px "YouYuan", "STYuanti", "HuaWenYuTi", sans-serif';
+      var wBefore = ctx.measureText(partBefore).width;
+      var wAfter = ctx.measureText(partAfter).width;
+      ctx.font = fontSize + 'px "Arial", sans-serif'; // non-bold English
+      var wMolly = ctx.measureText(partMolly).width;
+      var totalW = wBefore + wMolly + wAfter;
+      var startX = x - totalW / 2;
+      var curX = startX;
+
+      // Draw each part with outline + fill
+      // Part before (Chinese bold)
+      ctx.font = 'bold ' + fontSize + 'px "YouYuan", "STYuanti", "HuaWenYuTi", sans-serif';
+      setInkStroke(ctx, outlineWidth);
+      ctx.strokeText(partBefore, curX + wBefore / 2, y);
+      ctx.fillStyle = fontColor;
+      ctx.fillText(partBefore, curX + wBefore / 2, y);
+      curX += wBefore;
+
+      // "molly" (non-bold)
+      ctx.font = fontSize + 'px "Arial", sans-serif';
+      setInkStroke(ctx, outlineWidth);
+      ctx.strokeText(partMolly, curX + wMolly / 2, y);
+      ctx.fillStyle = fontColor;
+      ctx.fillText(partMolly, curX + wMolly / 2, y);
+      curX += wMolly;
+
+      // Part after (Chinese bold)
+      ctx.font = 'bold ' + fontSize + 'px "YouYuan", "STYuanti", "HuaWenYuTi", sans-serif';
+      setInkStroke(ctx, outlineWidth);
+      ctx.strokeText(partAfter, curX + wAfter / 2, y);
+      ctx.fillStyle = fontColor;
+      ctx.fillText(partAfter, curX + wAfter / 2, y);
+    } else {
+      // No "molly" found, just draw normally
+      setInkStroke(ctx, outlineWidth);
+      ctx.strokeText(text, x, y);
+      ctx.fillStyle = fontColor;
+      ctx.fillText(text, x, y);
+    }
+  } else {
+    // All Chinese: standard outline + fill
+    setInkStroke(ctx, outlineWidth);
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = fontColor;
+    ctx.fillText(text, x, y);
+  }
+
+  ctx.restore();
+}
+
+// Vinyl Geometry
+const DOWN_SHIFT = 240; // moved up from 280
+const vinylCX = W / 2;
+const vinylCY = H * 0.46 + DOWN_SHIFT;
+const vinylR = 520;
+const labelR = 230;
+
+// Tonearm
+const tonearmPivotX = W + 15;
+const tonearmPivotY = H * 0.14 + DOWN_SHIFT;
+const tonearmLength = 380;
+const tonearmRestAngle = 2.25;
+const tonearmPlayAngle = 2.85;
+let tonearmAngle = tonearmRestAngle;
+let tonearmTargetAngle = tonearmRestAngle;
+
+function getTonearmTip(armAngle) {
+  const headAngle = armAngle - 0.20;
+  const endX = tonearmPivotX + Math.cos(armAngle) * tonearmLength;
+  const endY = tonearmPivotY + Math.sin(armAngle) * tonearmLength;
+  const headLen = 70;
+  const headX = endX + Math.cos(headAngle) * headLen;
+  const headY = endY + Math.sin(headAngle) * headLen;
+  const needleLen = 20;
+  const needleAngle = headAngle + Math.PI / 2;
+  return {
+    x: headX + Math.cos(needleAngle) * needleLen,
+    y: headY + Math.sin(needleAngle) * needleLen
+  };
+}
+
+function getPointerAngleOnVinyl(armAngle) {
+  const tip = getTonearmTip(armAngle);
+  const dx = tip.x - vinylCX;
+  const dy = tip.y - vinylCY;
+  return Math.atan2(dy, dx);
+}
+
+const pointerWorldAngle = getPointerAngleOnVinyl(tonearmRestAngle);
+
+function getVinylAngleForSticker(stickerIndex) {
+  return pointerWorldAngle - (stickerIndex / STICKER_COUNT) * Math.PI * 2;
+}
+
+vinylAngle = getVinylAngleForSticker(0);
+
+// Spin animation
+const SPIN_DURATION = 1200;
+let spinStartTime = 0;
+// Safety fallback: if spin gets stuck, force-complete after timeout
+let spinTimeoutId = null;
+
+// Auto-rotate
+let autoRotateSpeed = 0;
+const AUTO_ROTATE_TARGET = 0.025;
+
+// UI state - swipe-to-back
+let isHovering = false;
+
+// Swipe-up gesture: go back to loading page
+const backTextCY = H * 0.93;
+const SWIPE_THRESHOLD = 120;
+let swipeStartY = 0;
+let swipeStartX = 0;
+let isSwiping = false;
+
+function drawBackHint(ctx, time) {
+  ctx.save();
+  var arrowY = backTextCY - 50 + Math.sin(time * 2) * 8;
+  var arrowX = W / 2;
+  ctx.globalAlpha = 0.7 + Math.sin(time * 3) * 0.25;
+  setInkStroke(ctx, 4);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(arrowX - 18, arrowY + 12);
+  ctx.lineTo(arrowX, arrowY - 10);
+  ctx.lineTo(arrowX + 18, arrowY + 12);
+  ctx.strokeStyle = C.cream;
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  var txt = '\u5411\u4e0a\u5212\u8fd4\u56de\u4e0a\u4e00\u9875';
+  ctx.font = 'bold 28px "YouYuan", "STYuanti", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 4;
+  ctx.strokeText(txt, W / 2, backTextCY);
+  ctx.fillStyle = allActivated ? C.cream : '#AAAAAA';
+  ctx.fillText(txt, W / 2, backTextCY);
+  ctx.restore();
+}
+
+// Comic Spark Particles
+const sparks = [];
+for (let i = 0; i < 24; i++) {
+  sparks.push({
+    angle: Math.random() * Math.PI * 2,
+    dist: vinylR + 30 + Math.random() * 80,
+    size: 3 + Math.random() * 6,
+    speed: 0.003 + Math.random() * 0.008,
+    rotSpeed: 0.02 + Math.random() * 0.05,
+    phase: Math.random() * Math.PI * 2,
+    rot: Math.random() * Math.PI * 2,
+  });
+}
+
+// Easing
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeInOut(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+
+// ═══════════════════════════════════════════════════
+// DRAWING HELPERS
+// ═══════════════════════════════════════════════════
+
+// Halftone Dot Pattern
+function drawHalftone(ctx, x, y, w, h, dotSize, spacing, alpha, color) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  for (let ry = y; ry < y + h; ry += spacing) {
+    const rowOff = ((ry - y) / spacing) % 2 === 0 ? 0 : spacing * 0.5;
+    for (let rx = x + rowOff; rx < x + w; rx += spacing) {
+      ctx.beginPath();
+      ctx.arc(rx, ry, dotSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+// Gritty Noise Texture
+function drawNoise(ctx, x, y, w, h, alpha, density) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  for (let i = 0; i < density; i++) {
+    const nx = x + Math.random() * w;
+    const ny = y + Math.random() * h;
+    const v = Math.random() > 0.5 ? 255 : 0;
+    ctx.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')';
+    ctx.fillRect(nx, ny, 1 + Math.random() * 2, 1 + Math.random() * 2);
+  }
+  ctx.restore();
+}
+
+function setInkStroke(ctx, width) {
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+}
+
+function drawComicText(ctx, text, x, y, fontSize, fontColor, outlineWidth, gray) {
+  ctx.save();
+  ctx.font = fontSize + 'px "YouYuan", "STYuanti", "HuaWenYuTi", "Microsoft YaHei UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = outlineWidth;
+  ctx.strokeText(text, x, y);
+  ctx.strokeStyle = C.white;
+  ctx.lineWidth = outlineWidth * 0.35;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = gray ? '#888888' : fontColor;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+function drawSpeedLines(ctx, cx, cy, innerR, outerR, count, alpha, time) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  setInkStroke(ctx, 2.5);
+  for (let i = 0; i < count; i++) {
+    const baseAngle = (i / count) * Math.PI * 2;
+    const wobble = Math.sin(time * 3 + i * 1.7) * 0.02;
+    const angle = baseAngle + wobble;
+    const lenFactor = 0.5 + 0.5 * Math.abs(Math.sin(time * 2 + i * 0.8));
+    const r1 = innerR;
+    const r2 = innerR + (outerR - innerR) * lenFactor;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle) * r1, cy + Math.sin(angle) * r1);
+    ctx.lineTo(cx + Math.cos(angle) * r2, cy + Math.sin(angle) * r2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBurstRays(ctx, cx, cy, innerR, outerR, count, alpha, time) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  for (let i = 0; i < count; i++) {
+    const baseAngle = (i / count) * Math.PI * 2;
+    const angle = baseAngle + time * 0.3;
+    const halfArc = Math.PI / count * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(angle - halfArc) * innerR, cy + Math.sin(angle - halfArc) * innerR);
+    ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR);
+    ctx.lineTo(cx + Math.cos(angle + halfArc) * innerR, cy + Math.sin(angle + halfArc) * innerR);
+    ctx.closePath();
+    ctx.fillStyle = (i % 2 === 0) ? C.yellow : C.orangeY;
+    ctx.fill();
+    setInkStroke(ctx, 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSparkParticles(ctx, cx, cy, alpha, time) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  sparks.forEach(function(sp) {
+    sp.angle += sp.speed;
+    sp.rot += sp.rotSpeed;
+    const pulseFactor = 0.6 + 0.4 * Math.sin(time * 4 + sp.phase);
+    const px = cx + Math.cos(sp.angle) * sp.dist * pulseFactor;
+    const py = cy + Math.sin(sp.angle) * sp.dist * pulseFactor;
+    const sz = sp.size * pulseFactor;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(sp.rot);
+    ctx.beginPath();
+    ctx.moveTo(0, -sz);
+    ctx.lineTo(sz * 0.6, 0);
+    ctx.lineTo(0, sz);
+    ctx.lineTo(-sz * 0.6, 0);
+    ctx.closePath();
+    ctx.fillStyle = allActivated ? C.yellow : '#999999';
+    ctx.fill();
+    setInkStroke(ctx, 1.5);
+    ctx.stroke();
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+function drawCornerLines(ctx) {
+  ctx.save();
+  setInkStroke(ctx, 4);
+  ctx.lineCap = 'round';
+  const margin = 55;
+  const lineLen = 120;
+  const lineCount = 5;
+
+  function drawCornerSet(ox, oy, dirX, dirY) {
+    for (let i = 0; i < lineCount; i++) {
+      const spread = (i - (lineCount - 1) / 2) * 18;
+      const length = lineLen * (0.6 + 0.4 * Math.random());
+      ctx.beginPath();
+      ctx.moveTo(ox + dirX * 10 + spread * dirY, oy + dirY * 10 + spread * dirX);
+      ctx.lineTo(ox + dirX * length + spread * dirY * 0.6, oy + dirY * length + spread * dirX * 0.6);
+      ctx.stroke();
+    }
+  }
+
+  drawCornerSet(margin, margin, 1, 1);
+  drawCornerSet(W - margin, margin, -1, 1);
+  drawCornerSet(margin, H - margin, 1, -1);
+  drawCornerSet(W - margin, H - margin, -1, -1);
+  ctx.restore();
+}
+
+function drawSpeechBubble(ctx, cx, cy, time) {
+  ctx.save();
+  const wobble = Math.sin(time * 2.5) * 0.03;
+  ctx.translate(cx, cy);
+  ctx.rotate(wobble);
+  const w = 260, h = 110;
+  ctx.fillStyle = allActivated ? C.white : '#DDDDDD';
+  setInkStroke(ctx, 6);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.2, h * 0.35);
+  ctx.lineTo(-w * 0.5, h * 1.1);
+  ctx.lineTo(-w * 0.02, h * 0.42);
+  ctx.closePath();
+  ctx.fill();
+  setInkStroke(ctx, 6);
+  ctx.stroke();
+  drawHalftone(ctx, -w * 0.35, -h * 0.25, w * 0.7, h * 0.5, 2, 8, 0.06, C.ink);
+  const bubbleText = allActivated ? 'SPIN!' : 'CLICK!';
+  const bubbleColor = allActivated ? C.deepRed : '#666666';
+  drawComicText(ctx, bubbleText, 0, -5, 52, bubbleColor, 5);
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════
+// STICKER DRAWING - uses pre-cached grayscale
+// ═══════════════════════════════════════════════════
+function drawSticker(ctx, img, key, x, y, size, rotation, activated, isTarget) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+
+  // Target sticker: subtle scale pulsing
+  if (isTarget) {
+    const pulse = 1 + Math.sin(Date.now() * 0.005) * 0.04;
+    ctx.scale(pulse, pulse);
+  }
+
+  const s = size;
+  const half = s / 2;
+
+  if (!img.complete || !img.naturalWidth) {
+    // Placeholder: always draw something
+    ctx.fillStyle = activated ? C.bg : '#888888';
+    ctx.fillRect(-half, -half, s, s);
+    ctx.strokeStyle = C.ink;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(-half, -half, s, s);
+    ctx.restore();
+    return;
+  }
+
+  const masks = stickerMasks[key];
+
+  if (!activated) {
+    // Grayscale: use cache if available, otherwise filter
+    const gc = grayStickerCache[key];
+    if (gc) {
+      ctx.drawImage(gc.canvas, -gc.off, -gc.off, gc.canvas.width, gc.canvas.height);
+    } else {
+      ctx.save();
+      try { ctx.filter = 'grayscale(100%) brightness(0.75)'; } catch(e) {}
+      ctx.drawImage(img, -half, -half, s, s);
+      ctx.restore();
+    }
+  } else {
+    // Colored sticker: use masks if available, otherwise simple outline
+    if (masks) {
+      const bmS = s * 1.10;
+      [[-2,-2],[2,-2],[-2,2],[2,2],[0,-2],[0,2],[-2,0],[2,0],[-1,-1],[1,1],[-1,1],[1,-1]].forEach(function(off) {
+        ctx.drawImage(masks.black, -bmS / 2 + off[0] * 1.5, -bmS / 2 + off[1] * 1.5, bmS, bmS);
+      });
+      const whiteS = s * 1.035;
+      ctx.drawImage(masks.white, -whiteS / 2, -whiteS / 2, whiteS, whiteS);
+      ctx.drawImage(img, -half, -half, s, s);
+    } else {
+      // Simple outline fallback (no masks needed)
+      [-3,0,3].forEach(function(dx) {
+        [-3,0,3].forEach(function(dy) {
+          if (dx === 0 && dy === 0) return;
+          ctx.drawImage(img, -half + dx, -half + dy, s, s);
+        });
+      });
+      ctx.drawImage(img, -half, -half, s, s);
+    }
+    // Halftone overlay
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-half, -half, s, s);
+    ctx.clip();
+    drawHalftone(ctx, -half, -half, s, s, 1.5, 12, 0.08, C.ink);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// 4-point star
+function drawStar(ctx, x, y, size, gray) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+    const r = i % 2 === 0 ? size : size * 0.4;
+    if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+    const r = i % 2 === 0 ? size * 0.82 : size * 0.32;
+    if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath();
+  ctx.fillStyle = gray ? '#AAAAAA' : '#FFE030';
+  ctx.fill();
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+// DRAW VINYL
+// ══════════════════════════════════════════════
+function drawVinyl(ctx, cx, cy, radius, angle) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  // Outer disc
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fillStyle = allActivated ? '#0A0A0A' : '#2A2A2A';
+  ctx.fill();
+  setInkStroke(ctx, 6);
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Outer rim highlight
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Groove rings
+  ctx.lineWidth = 1.2;
+  for (let g = radius - 18; g > labelR + 10; g -= 5) {
+    const intensity = (g % 10 < 5) ? 0.12 : 0.06;
+    ctx.strokeStyle = 'rgba(255,255,255,' + intensity + ')';
+    ctx.beginPath();
+    ctx.arc(0, 0, g, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // 3 Main stickers
+  const stickerR = 380;
+  const stickerDefs = [
+    { img: stickerImg, key: 's1', size: 240, rotOff: 0 },
+    { img: sticker2Img, key: 's2', size: 195, rotOff: 0 },
+    { img: sticker3Img, key: 's3', size: 240, rotOff: 0 }
+  ];
+  for (let i = 0; i < 3; i++) {
+    const sa = (i / 3) * Math.PI * 2;
+    const sx = Math.cos(sa) * stickerR;
+    const sy = Math.sin(sa) * stickerR;
+    const sd = stickerDefs[i];
+    const extraRot = (i === 1) ? sa : 0;
+    const activated = activatedStickers[i];
+    const isTarget = (!allActivated && !isSpinningToNext && currentTargetIndex === i);
+    drawSticker(ctx, sd.img, sd.key, sx, sy, sd.size, sd.rotOff + extraRot, activated, isTarget);
+  }
+
+  // Stars
+  const starPositions = [
+    { baseAngle: -0.3, dist: 140, size: 15 },
+    { baseAngle: 0.4, dist: 128, size: 12 },
+    { baseAngle: 2.0, dist: 145, size: 18 },
+    { baseAngle: 2.5, dist: 135, size: 10 },
+    { baseAngle: 2.8, dist: 150, size: 14 },
+    { baseAngle: 3.8, dist: 142, size: 16 },
+    { baseAngle: 4.2, dist: 130, size: 11 },
+    { baseAngle: 5.0, dist: 148, size: 13 },
+  ];
+  starPositions.forEach(function(sp) {
+    const sx = Math.cos(sp.baseAngle) * sp.dist;
+    const sy = Math.sin(sp.baseAngle) * sp.dist;
+    drawStar(ctx, sx, sy, sp.size, !allActivated);
+  });
+
+  // Center avatar: circle background + Molly head
+  // Gray background initially → red after full activation
+  ctx.beginPath();
+  ctx.arc(0, 0, labelR, 0, Math.PI * 2);
+  ctx.fillStyle = C.bg; // always bright red background
+  ctx.fill();
+
+  if (mollyAvatarImg.complete && mollyAvatarImg.naturalWidth) {
+    const centerSize = labelR * 1.9;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, labelR - 4, 0, Math.PI * 2);
+    ctx.clip();
+    try { ctx.filter = 'none'; } catch(e) {} // always colored
+    // Draw avatar with head-centered offset (shift slightly down)
+    const avatarAspect = mollyAvatarImg.naturalWidth / mollyAvatarImg.naturalHeight;
+    let aDrawW = centerSize;
+    let aDrawH = centerSize / avatarAspect;
+    if (aDrawH < centerSize) { aDrawH = centerSize; aDrawW = centerSize * avatarAspect; }
+    // Shift down to lower head position in circle
+    const offsetY = -aDrawH * 0.18;
+    ctx.drawImage(mollyAvatarImg, -aDrawW / 2, -aDrawH / 2 - offsetY, aDrawW, aDrawH);
+    ctx.restore();
+  }
+
+  // Label border ring
+  setInkStroke(ctx, 5);
+  ctx.beginPath();
+  ctx.arc(0, 0, labelR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // White inner ring (comic pop effect)
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, labelR - 6, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Center hole
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+
+  // Glossy highlight
+  ctx.beginPath();
+  ctx.arc(0, 0, radius - 15, -Math.PI * 0.75, -Math.PI * 0.25);
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 10;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+// TONEARM
+// ══════════════════════════════════════════════
+function drawTonearm(ctx, pivotX, pivotY, angle, length, isPlaying, time) {
+  ctx.save();
+  const endX = pivotX + Math.cos(angle) * length;
+  const endY = pivotY + Math.sin(angle) * length;
+
+  // Shadow
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.moveTo(pivotX + 12, pivotY + 14);
+  ctx.lineTo(endX + 12, endY + 14);
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 28;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
+
+  // Arm outline
+  ctx.beginPath();
+  ctx.moveTo(pivotX, pivotY);
+  ctx.lineTo(endX, endY);
+  setInkStroke(ctx, 26);
+  ctx.stroke();
+
+  // Arm white
+  ctx.beginPath();
+  ctx.moveTo(pivotX, pivotY);
+  ctx.lineTo(endX, endY);
+  ctx.strokeStyle = C.white;
+  ctx.lineWidth = 18;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Arm gradient
+  var armGrad = ctx.createLinearGradient(pivotX, pivotY, endX, endY);
+  armGrad.addColorStop(0, '#B0B0B0');
+  armGrad.addColorStop(0.3, '#D8D8D8');
+  armGrad.addColorStop(0.5, '#888888');
+  armGrad.addColorStop(0.7, '#CCCCCC');
+  armGrad.addColorStop(1, '#808080');
+  ctx.beginPath();
+  ctx.moveTo(pivotX, pivotY);
+  ctx.lineTo(endX, endY);
+  ctx.strokeStyle = armGrad;
+  ctx.lineWidth = 13;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Highlight
+  ctx.beginPath();
+  ctx.moveTo(pivotX + Math.cos(angle - 0.06) * 30, pivotY + Math.sin(angle - 0.06) * 30);
+  ctx.lineTo(endX + Math.cos(angle - 0.06) * (-40), endY + Math.sin(angle - 0.06) * (-40));
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // Head
+  var headAngle = angle - 0.20;
+  var headLen = 70;
+  var headX = endX + Math.cos(headAngle) * headLen;
+  var headY = endY + Math.sin(headAngle) * headLen;
+
+  ctx.beginPath();
+  ctx.moveTo(endX, endY);
+  ctx.lineTo(headX, headY);
+  setInkStroke(ctx, 18);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(endX, endY);
+  ctx.lineTo(headX, headY);
+  ctx.strokeStyle = C.white;
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(endX, endY);
+  ctx.lineTo(headX, headY);
+  ctx.strokeStyle = '#666666';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Cartridge
+  var cartAngle = headAngle;
+  var cartW = 36, cartH = 20;
+  ctx.save();
+  ctx.translate(headX, headY);
+  ctx.rotate(cartAngle);
+  ctx.fillStyle = C.ink;
+  ctx.fillRect(-cartW/2 - 3, -cartH/2 - 3, cartW + 6, cartH + 6);
+  ctx.fillStyle = C.white;
+  ctx.fillRect(-cartW/2, -cartH/2, cartW, cartH);
+  ctx.fillStyle = '#666666';
+  ctx.fillRect(-cartW/2 + 2, -cartH/2 + 2, cartW - 4, cartH - 4);
+  ctx.restore();
+
+  // Needle
+  var needleLen = 20;
+  var needleAngle = cartAngle + Math.PI / 2;
+  var needleX = headX + Math.cos(needleAngle) * needleLen;
+  var needleY = headY + Math.sin(needleAngle) * needleLen;
+
+  var vibX = 0, vibY = 0;
+  if (allActivated) {
+    vibX = Math.sin(time * 80) * 0.8;
+    vibY = Math.cos(time * 60) * 0.8;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(headX, headY);
+  ctx.lineTo(needleX + vibX, needleY + vibY);
+  setInkStroke(ctx, 5);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(needleX + vibX, needleY + vibY, 5, 0, Math.PI * 2);
+  ctx.fillStyle = C.white;
+  ctx.fill();
+  setInkStroke(ctx, 2);
+  ctx.stroke();
+
+  // Pivot
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY, 45, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY, 39, 0, Math.PI * 2);
+  ctx.fillStyle = C.white;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY, 34, 0, Math.PI * 2);
+  var pivotGrad = ctx.createRadialGradient(pivotX - 8, pivotY - 8, 4, pivotX, pivotY, 34);
+  pivotGrad.addColorStop(0, '#E0E0E0');
+  pivotGrad.addColorStop(0.6, '#999999');
+  pivotGrad.addColorStop(1, '#666666');
+  ctx.fillStyle = pivotGrad;
+  ctx.fill();
+  setInkStroke(ctx, 4);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(pivotX, pivotY, 12, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(pivotX - 6, pivotY - 6, 6, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fill();
+
+  // Counterweight
+  var cwDist = 80;
+  var cwAngle = angle + Math.PI;
+  var cwX = pivotX + Math.cos(cwAngle) * cwDist;
+  var cwY = pivotY + Math.sin(cwAngle) * cwDist;
+
+  ctx.beginPath();
+  ctx.arc(cwX, cwY, 22, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cwX, cwY, 18, 0, Math.PI * 2);
+  ctx.fillStyle = '#888888';
+  ctx.fill();
+  setInkStroke(ctx, 3);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cwX - 4, cwY - 4, 5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════
+// MOLLY AVATAR - cartoon head sticker near title
+// ═══════════════════════════════════════════════════
+function checkHitAvatar(px, py) {
+  var dx = px - avatarX;
+  var dy = py - avatarY;
+  // Elliptical hit area matching vertical stretch
+  var rx = avatarSize / 2 + 15;
+  var ry = avatarSize * 1.5 / 2 + 20;
+  return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) < 1;
+}
+
+function drawMollyAvatar(ctx, time) {
+  if (!mollyAvatarImg.complete || !mollyAvatarImg.naturalWidth) return;
+
+  ctx.save();
+  ctx.translate(avatarX, avatarY);
+
+  // Slight shaking/bouncing animation (always visible, always shaking)
+  var shake = 1 + Math.sin(time * 0.006) * 0.04; // ±4% scale pulse
+  ctx.scale(shake, shake);
+
+  // Vertically stretched display - always show colored image
+  var sw = avatarSize;
+  var sh = avatarSize * 1.5; // 1.5x taller (vertical stretch)
+  var halfW = sw / 2;
+  var halfH = sh / 2;
+
+  try { ctx.filter = 'none'; } catch(e) {}
+  ctx.drawImage(mollyAvatarImg, -halfW, -halfH, sw, sh);
+  ctx.restore();
+
+  // Avatar speech bubble dialog
+  if (avatarDialogText && avatarDialogTime > 0) {
+    var elapsed = Date.now() - avatarDialogTime;
+    if (elapsed < avatarDialogDuration) {
+      drawAvatarDialog(ctx, avatarDialogText, elapsed);
+    } else {
+      avatarDialogText = '';
+      avatarDialogTime = 0;
+    }
+  }
+}
+
+function drawAvatarDialog(ctx, text, elapsed) {
+  var bx = avatarX + avatarSize / 2 + 20;
+  var by = avatarY - avatarSize / 2 - 10;
+  ctx.save();
+
+  // Fade in/out
+  var alpha = 1;
+  if (elapsed < 300) alpha = elapsed / 300;
+  else if (elapsed > avatarDialogDuration - 500) alpha = (avatarDialogDuration - elapsed) / 500;
+  ctx.globalAlpha = alpha;
+
+  // ── Split by \\n (manual line breaks), center-aligned, never exceed page ──
+  ctx.font = 'bold 20px "YouYuan", "STYuanti", sans-serif';
+  var padX = 24, padY = 14;
+  var lineHeight = 32;
+
+  // Use manual \\n splits — user controls exact line breaks
+  var lines = text.split('\n');
+
+  // Bubble dimensions based on actual lines
+  var maxLineW = 0;
+  for (var li = 0; li < lines.length; li++) {
+    var lw = ctx.measureText(lines[li]).width;
+    if (lw > maxLineW) maxLineW = lw;
+  }
+  var bw = Math.max(maxLineW + padX * 2, 160);
+  var bh = lines.length * lineHeight + padY * 2;
+
+  // ═══ Clamp ALL edges to stay inside canvas (1080×1920) ═══
+  if (bx + bw > W - 30) { bx = W - 30 - bw; }
+  if (bx < 30) { bx = 30; }
+  if (by + bh > H - 40) { by = H - 40 - bh; }
+  if (by < 30) { by = 30; }
+
+  // Bubble background (rounded rect manually)
+  ctx.fillStyle = C.white;
+  setInkStroke(ctx, 4);
+  ctx.lineJoin = 'round';
+  var r15 = 15;
+  ctx.beginPath();
+  ctx.moveTo(bx + r15, by);
+  ctx.lineTo(bx + bw - r15, by);
+  ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + r15);
+  ctx.lineTo(bx + bw, by + bh - r15);
+  ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - r15, by + bh);
+  ctx.lineTo(bx + r15, by + bh);
+  ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - r15);
+  ctx.lineTo(bx, by + r15);
+  ctx.quadraticCurveTo(bx, by, bx + r15, by);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Draw tail separately (clamped so it stays on screen)
+  ctx.beginPath();
+  var tx1 = Math.max(5, bx - 13);
+  var tx2 = Math.max(2, bx - 26);
+  var tx3 = Math.max(8, bx - 6);
+  ctx.moveTo(tx1, by + bh / 2 - 10);
+  ctx.lineTo(tx2, by + bh / 2 + 6);
+  ctx.lineTo(tx3, by + bh / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Draw each line — CENTER aligned
+  ctx.font = 'bold 19px "YouYuan", "STYuanti", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = C.ink;
+  var textStartY = by + padY + lineHeight / 2;
+  for (var li = 0; li < lines.length; li++) {
+    ctx.fillText(lines[li], bx + bw / 2, textStartY + li * lineHeight);
+  }
+
+  ctx.restore();
+}
+
+// Background - always colorful
+function drawBackground(ctx) {
+  if (bgImg.complete && bgImg.naturalWidth) {
+    ctx.save();
+    var imgAspect = bgImg.naturalWidth / bgImg.naturalHeight;
+    var canvasAspect = W / H;
+    var dw, dh, dx, dy;
+    if (imgAspect > canvasAspect) {
+      dh = H; dw = dh * imgAspect;
+      dx = (W - dw) / 2; dy = 0;
+    } else {
+      dw = W; dh = dw / imgAspect;
+      dx = 0; dy = (H - dh) / 2;
+    }
+    ctx.drawImage(bgImg, dx, dy, dw, dh);
+    ctx.restore();
+    // Red gradient overlay at bottom
+    var wmY = H * 0.88;
+    var wmH = H * 0.12;
+    var grad = ctx.createLinearGradient(0, wmY, 0, H);
+    grad.addColorStop(0, 'rgba(180,30,20,0)');
+    grad.addColorStop(0.35, 'rgba(160,28,18,0.85)');
+    grad.addColorStop(1, 'rgba(140,25,15,1)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, wmY, W, wmH);
+  } else {
+    // Image not loaded yet: draw a dark red gradient (not solid bright red)
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#8B1515');
+    g.addColorStop(0.5, '#6B1010');
+    g.addColorStop(1, '#4A0A0A');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+// ════════════════════════════════════════════════
+// SPIN ANIMATION: clockwise, align next sticker
+// ════════════════════════════════════════════════
+function startSpinToSticker(nextIndex) {
+  isSpinningToNext = true;
+  spinStartTime = Date.now();
+  spinStartAngle = vinylAngle;
+  var rawTarget = getVinylAngleForSticker(nextIndex);
+  var TWO_PI = Math.PI * 2;
+  var delta = rawTarget - spinStartAngle;
+  // Normalize to [0, 2π) for clockwise spin
+  delta = ((delta % TWO_PI) + TWO_PI) % TWO_PI;
+  if (delta < 0.1) delta += TWO_PI;
+  spinTargetAngle = spinStartAngle + delta;
+
+  // Safety fallback: force-complete spin if animation gets stuck
+  if (spinTimeoutId) clearTimeout(spinTimeoutId);
+  spinTimeoutId = setTimeout(function() {
+    if (isSpinningToNext) {
+      vinylAngle = spinTargetAngle;
+      isSpinningToNext = false;
+      console.log('[Molly] Spin safety timeout triggered');
+    }
+  }, SPIN_DURATION + 500);
+}
+
+// ════════════════════════════════════════════════
+// HIT TEST
+// ════════════════════════════════════════════════
+function getStickerWorldPos(i) {
+  var stickerR = 380;
+  var localAngle = (i / 3) * Math.PI * 2;
+  var worldAngle = localAngle + vinylAngle;
+  return {
+    x: vinylCX + Math.cos(worldAngle) * stickerR,
+    y: vinylCY + Math.sin(worldAngle) * stickerR
+  };
+}
+
+function checkHitSticker(px, py, i) {
+  var pos = getStickerWorldPos(i);
+  var dx = px - pos.x;
+  var dy = py - pos.y;
+  var stickerSizes = [240, 195, 240];
+  var hitRadius = stickerSizes[i] * 0.7; // increased from 0.6 for easier tapping
+  return Math.sqrt(dx * dx + dy * dy) < hitRadius;
+}
+
+// ════════════════════════════════════════════════
+// MAIN RENDER LOOP
+// ════════════════════════════════════════════════
+function render() {
+  try {
+    var now = Date.now();
+    var time = now * 0.001;
+
+    // Trigger spin animation if returning from game1 (one-time on first frame)
+    if (window.__molly_restoreSpin !== undefined && window.__molly_restoreSpin !== null) {
+      var restoreIdx = window.__molly_restoreSpin;
+      window.__molly_restoreSpin = null; // consume flag
+      if (!allActivated) {
+        startSpinToSticker(restoreIdx);
+        soundSpin();
+      }
+    }
+
+    // Update spin animation
+    if (isSpinningToNext) {
+      var elapsed = now - spinStartTime;
+      var t = Math.min(elapsed / SPIN_DURATION, 1);
+      var et = easeInOut(t);
+      vinylAngle = spinStartAngle + (spinTargetAngle - spinStartAngle) * et;
+      if (t >= 1) {
+        vinylAngle = spinTargetAngle;
+        isSpinningToNext = false;
+        if (spinTimeoutId) { clearTimeout(spinTimeoutId); spinTimeoutId = null; }
+      }
+    } else if (allActivated) {
+      autoRotateSpeed = lerp(autoRotateSpeed, AUTO_ROTATE_TARGET, 0.03);
+      vinylAngle += autoRotateSpeed;
+    }
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    drawBackground(ctx);
+
+    // Burst Rays (all activated only)
+    if (allActivated) {
+      var burstAlpha = 0.12 + Math.sin(time * 2) * 0.04;
+      drawBurstRays(ctx, vinylCX, vinylCY, vinylR * 0.55, vinylR * 1.35, 16, burstAlpha, time);
+    }
+
+    // Speed Lines
+    var speedAlpha = allActivated ? 0.35 : (isSpinningToNext ? 0.2 : 0.05);
+    var lineCount = allActivated ? 36 : (isSpinningToNext ? 16 : 8);
+    drawSpeedLines(ctx, vinylCX, vinylCY, vinylR + 15, vinylR + 90, lineCount, speedAlpha, time);
+
+    // Vinyl with shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.45)';
+    ctx.shadowBlur = 30;
+    ctx.shadowOffsetX = 12;
+    ctx.shadowOffsetY = 20;
+    drawVinyl(ctx, vinylCX, vinylCY, vinylR, vinylAngle);
+    ctx.restore();
+
+    // Comic glow (all activated)
+    if (allActivated) {
+      var glowPulse = 0.15 + Math.sin(time * 3) * 0.08;
+      ctx.save();
+      ctx.globalAlpha = glowPulse;
+      ctx.shadowColor = C.brightYellow;
+      ctx.shadowBlur = 80;
+      ctx.strokeStyle = C.yellow;
+      ctx.lineWidth = 16;
+      ctx.beginPath();
+      ctx.arc(vinylCX, vinylCY, vinylR + 8, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Spark particles
+    var sparkAlpha = allActivated ? 0.7 : (isSpinningToNext ? 0.3 : 0.15);
+    drawSparkParticles(ctx, vinylCX, vinylCY, sparkAlpha, time);
+
+    // Tonearm
+    tonearmTargetAngle = tonearmRestAngle;
+    tonearmAngle = lerp(tonearmAngle, tonearmTargetAngle, 0.05);
+    drawTonearm(ctx, tonearmPivotX, tonearmPivotY, tonearmAngle, tonearmLength, allActivated, time);
+
+    // Check typewriter state + redirect timing
+    checkTypewriterStart();
+
+    // Guidance hint: show when no stickers activated yet
+    drawGuidanceHint(ctx, time);
+
+    // Dynamic phrase text (centered, changes per activation state)
+    drawDynamicPhrase(ctx, time);
+
+    // Title — English title keeps original comic bold font
+    var titleY = H * 0.075;
+    ctx.save();
+    ctx.font = '144px Impact, "Arial Black", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = C.ink;
+    ctx.lineWidth = 10;
+    ctx.strokeText('ANGRY MOLLY', W / 2, titleY);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 10 * 0.35;
+    ctx.strokeText('ANGRY MOLLY', W / 2, titleY);
+    ctx.fillStyle = !allActivated ? '#888888' : C.cream;
+    ctx.fillText('ANGRY MOLLY', W / 2, titleY);
+    ctx.restore();
+
+    ctx.save();
+    ctx.font = 'bold 56px "Arial Black", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = C.ink;
+    ctx.lineWidth = 6;
+    ctx.strokeText('ORIGINAL FIRE XL', W / 2, titleY + 100);
+  ctx.fillStyle = allActivated ? C.yellow : '#888888';
+  ctx.fillText('ORIGINAL FIRE XL', W / 2, titleY + 100);
+  ctx.restore();
+
+  // Back hint text with swipe-up
+  drawBackHint(ctx, time);
+
+  // Halftone overlay (pre-rendered cache)
+    if (halftoneCache) {
+      ctx.save();
+      ctx.globalAlpha = 0.04;
+      ctx.drawImage(halftoneCache, 0, 0);
+      ctx.restore();
+    }
+
+    // Gritty texture (reduced density for performance)
+    drawNoise(ctx, 0, 0, W, H, 0.04, 200);
+
+    // Comic ink splatter
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = C.ink;
+    for (var i = 0; i < 12; i++) {
+      var sx = (Math.sin(i * 2.3) * 0.5 + 0.5) * W;
+      var sy = (Math.cos(i * 1.7) * 0.5 + 0.5) * H;
+      var sr = 3 + Math.random() * 8;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Corner lines
+    drawCornerLines(ctx);
+
+    // Click text pop animations
+    drawClickTexts(ctx);
+
+  } catch(e) {
+    console.error('Render error:', e);
+  }
+
+  requestAnimationFrame(render);
+}
+
+// Guidance hint - show when no stickers activated yet
+function drawGuidanceHint(ctx, time) {
+  var anyActivated = activatedStickers.some(function(v) { return v; });
+  if (anyActivated) return;
+
+  ctx.save();
+  var alpha = 0.55 + Math.sin(time * 2) * 0.2;
+  ctx.globalAlpha = alpha;
+  var guidY = H * 0.38;
+  ctx.font = 'bold 48px "YouYuan", "STYuanti", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 5;
+  var guidText = '点击贴纸，解锁剧情吧';
+  ctx.strokeText(guidText, W / 2, guidY);
+  ctx.fillStyle = C.cream;
+  ctx.fillText(guidText, W / 2, guidY);
+
+  // Arrow pointing right where stickers sit on the vinyl
+  var arrowY = guidY + 60 + Math.sin(time * 3) * 8;
+  ctx.globalAlpha = alpha * 0.9;
+  ctx.font = '40px sans-serif';
+  ctx.fillStyle = C.yellow;
+  ctx.fillText('\uD83D\uDC49', W * 0.62, arrowY);
+  ctx.restore();
+}
+
+// ════════════════════════════════════════════════
+// CLICK TEXT POP ANIMATION
+// ════════════════════════════════════════════════
+var clickTexts = [];
+
+var CLICK_PHRASES = [
+  '✨ 就是你！',
+  '🎵 转起来！',
+  '💥 NICE！',
+  '🌟 棒极了！',
+  '🔥 加油！',
+];
+var FINAL_PHRASES = [
+  '💖 你值得被爱',
+  'molly永远陪着你 ✨',
+];
+
+function spawnClickText(x, y, isFinal) {
+  var phrases = isFinal ? FINAL_PHRASES : CLICK_PHRASES;
+  // For final, spawn both lines
+  if (isFinal) {
+    for (var i = 0; i < phrases.length; i++) {
+      clickTexts.push({
+        text: phrases[i],
+        x: x + (Math.random() - 0.5) * 60,
+        y: y - 60 - i * 80,
+        born: Date.now(),
+        duration: 2400,
+        vy: -1.3 - Math.random() * 0.7,
+        scale: 1.0 + i * 0.1,
+        color: i === 0 ? '#CC1020' : '#FFAA20',
+      });
+    }
+  } else {
+    var phrase = CLICK_PHRASES[Math.floor(Math.random() * CLICK_PHRASES.length)];
+    clickTexts.push({
+      text: phrase,
+      x: x + (Math.random() - 0.5) * 80,
+      y: y - 80,
+      born: Date.now(),
+      duration: 2000,
+      vy: -1.4 - Math.random() * 0.8,
+      scale: 0.9 + Math.random() * 0.3,
+      color: C.cream,
+    });
+  }
+}
+
+function drawClickTexts(ctx) {
+  var now = Date.now();
+  for (var i = clickTexts.length - 1; i >= 0; i--) {
+    var ct = clickTexts[i];
+    var age = now - ct.born;
+    if (age > ct.duration) { clickTexts.splice(i, 1); continue; }
+
+    var t = age / ct.duration;
+    var alpha = t < 0.15 ? t / 0.15 : (t > 0.65 ? 1 - (t - 0.65) / 0.35 : 1);
+    // Bounce scale: quick pop then settle
+    var bounce = t < 0.2 ? (1 + Math.sin(t / 0.2 * Math.PI) * 0.3) : 1.0;
+    var curY = ct.y + ct.vy * age * 0.5;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(ct.x, curY);
+    ctx.scale(ct.scale * bounce, ct.scale * bounce);
+    ctx.font = 'bold 52px "YouYuan", "STYuanti", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 8;
+    ctx.strokeText(ct.text, 0, 0);
+    ctx.fillStyle = ct.color;
+    ctx.fillText(ct.text, 0, 0);
+    ctx.restore();
+  }
+}
+
+// ════════════════════════════════════════════════
+// INTERACTION
+// ════════════════════════════════════════════════
+// Sticker→page mapping: 0(便利贴)→office, 1(镜子)→mirror, 2(画笔)→dream-studio
+// 激活顺序（逆时针）: 0 → 2 → 1
+var STICKER_PAGES = ['office.html', 'mirror-fog-v5-backup.html', 'dream-studio.html'];
+
+// Guard against double-fire (touchstart + click on touch devices)
+let lastClickTime = 0;
+const CLICK_DEBOUNCE = 500; // ms
+
+function getPointerPos(e) {
+  var rect = canvas.getBoundingClientRect();
+  var scaleX = W / rect.width;
+  var scaleY = H / rect.height;
+  var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
+function handleClick(px, py) {
+  try {
+    var now = Date.now();
+    if (now - lastClickTime < CLICK_DEBOUNCE) return;
+    lastClickTime = now;
+
+    // Once allActivated, clicking anywhere redirects to ending
+    if (allActivated) {
+      console.log('[Molly] User clicked after allActivated → ending.html');
+      try { sessionStorage.setItem('molly_ending_music', '1'); } catch(e) {}
+      window.location.href = 'ending.html';
+      return;
+    }
+
+    // Safety: force-unstick spin if it's been stuck for > 3 seconds
+    if (isSpinningToNext && spinStartTime && (now - spinStartTime > 3000)) {
+      vinylAngle = spinTargetAngle;
+      isSpinningToNext = false;
+      if (spinTimeoutId) { clearTimeout(spinTimeoutId); spinTimeoutId = null; }
+    }
+    if (isSpinningToNext) { return; }
+
+    // Only accept clicks on the CURRENT target sticker
+    var hitTarget = checkHitSticker(px, py, currentTargetIndex);
+
+    if (hitTarget) {
+      // Activate current target
+      var activatedIndex = currentTargetIndex;
+      activatedStickers[activatedIndex] = true;
+
+      var allDone = activatedStickers.every(function(v) { return v; });
+
+      // Pop text: show "做得好！" for non-last stickers only
+      if (!allDone) {
+        var sPos2 = getStickerWorldPos(activatedIndex);
+        spawnClickText(sPos2.x, sPos2.y, false);
+        soundBiu();
+      }
+
+      if (allDone && activatedIndex === 1) {
+        // Mirror (sticker 1) is last — navigate first, celebrate on return
+        try {
+          sessionStorage.setItem('molly_activated', JSON.stringify(activatedStickers));
+          sessionStorage.setItem('molly_target', String(currentTargetIndex));
+          sessionStorage.setItem('molly_from_subpage', '1');
+          sessionStorage.setItem('molly_last_activated', String(activatedIndex));
+          sessionStorage.setItem('molly_pending_final', '1');
+        } catch(e) {}
+        var finalUrl = STICKER_PAGES[activatedIndex];
+        setTimeout(function() {
+          soundTransition();
+          window.location.href = finalUrl;
+        }, 500);
+      } else if (allDone) {
+        // Other sticker is last → immediate celebration
+        allActivated = true;
+        soundAllDone();
+        try {
+          sessionStorage.setItem('molly_activated', JSON.stringify(activatedStickers));
+          sessionStorage.setItem('molly_target', String(currentTargetIndex));
+          sessionStorage.setItem('molly_from_subpage', '1');
+          sessionStorage.setItem('molly_last_activated', String(activatedIndex));
+        } catch(e) {}
+        var finalUrl = STICKER_PAGES[activatedIndex];
+        setTimeout(function() {
+          soundTransition();
+          window.location.href = finalUrl;
+        }, 1200);
+      } else {
+        // Find next unactivated sticker (0→2→1 counterclockwise)
+        var next = (activatedIndex - 1 + STICKER_COUNT) % STICKER_COUNT;
+        var safety = 0;
+        while (activatedStickers[next] && safety < STICKER_COUNT) {
+          next = (next - 1 + STICKER_COUNT) % STICKER_COUNT;
+          safety++;
+        }
+        currentTargetIndex = next;
+        // DON'T spin now — player can't see it before navigation.
+        // Spin will happen on return via __molly_restoreSpin in render loop.
+
+        // Save state to sessionStorage, then navigate to sub-page
+        try {
+          sessionStorage.setItem('molly_activated', JSON.stringify(activatedStickers));
+          sessionStorage.setItem('molly_target', String(currentTargetIndex));
+          sessionStorage.setItem('molly_from_subpage', '1');
+          sessionStorage.setItem('molly_last_activated', String(activatedIndex));
+        } catch(e) {}
+
+        // Navigate after short delay
+        var targetUrl = STICKER_PAGES[activatedIndex];
+        setTimeout(function() {
+          soundTransition();
+          window.location.href = targetUrl;
+        }, 500);
+      }
+    }
+  } catch(err) {
+    console.error('[Molly] handleClick error:', err);
+  }
+}
+
+canvas.addEventListener('mousemove', function(e) {
+  var p = getPointerPos(e);
+  var onTarget = (!allActivated && !isSpinningToNext && checkHitSticker(p.x, p.y, currentTargetIndex));
+  canvas.style.cursor = onTarget ? 'pointer' : 'default';
+});
+
+canvas.addEventListener('mouseleave', function() {
+  isHovering = false;
+});
+
+canvas.addEventListener('click', function(e) {
+  var p = getPointerPos(e);
+  handleClick(p.x, p.y);
+});
+
+canvas.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  var t = e.touches[0];
+  var p = getPointerPos(e);
+  swipeStartY = t.clientY;
+  swipeStartX = t.clientX;
+  isSwiping = true;
+  handleClick(p.x, p.y);
+}, { passive: false });
+
+// Swipe-up gesture: touch
+canvas.addEventListener('touchmove', function(e) {
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchend', function(e) {
+  if (isSwiping) {
+    var t = e.changedTouches[0];
+    var dy = swipeStartY - t.clientY;
+    var dx = Math.abs(t.clientX - swipeStartX);
+    if (dy > SWIPE_THRESHOLD && dx < dy * 0.5) {
+      // 写入状态，让加载页能正确读取
+      try {
+        sessionStorage.setItem('molly_activated', JSON.stringify(activatedStickers));
+        sessionStorage.setItem('molly_target', String(currentTargetIndex));
+        sessionStorage.setItem('molly_from_subpage', '1');
+      } catch(e) {}
+      window.location.href = 'index.html';
+    }
+  }
+  isSwiping = false;
+});
+
+// Swipe-up gesture: mouse drag
+canvas.addEventListener('mousedown', function(e) {
+  swipeStartY = e.clientY;
+  swipeStartX = e.clientX;
+  isSwiping = true;
+});
+
+canvas.addEventListener('mouseup', function(e) {
+  if (isSwiping) {
+    var dy = swipeStartY - e.clientY;
+    var dx = Math.abs(e.clientX - swipeStartX);
+    if (dy > SWIPE_THRESHOLD && dx < dy * 0.5) {
+      try {
+        sessionStorage.setItem('molly_activated', JSON.stringify(activatedStickers));
+        sessionStorage.setItem('molly_target', String(currentTargetIndex));
+        sessionStorage.setItem('molly_from_subpage', '1');
+      } catch(e) {}
+      window.location.href = 'index.html';
+    }
+  }
+  isSwiping = false;
+});
+
+// Start rendering immediately (single loop only)
+render();
+
+  // Stop cheerful music loop on page unload
+  window.addEventListener('beforeunload', function() { cheerfulLoop = false; });
+</script>
+</body>
+</html>
