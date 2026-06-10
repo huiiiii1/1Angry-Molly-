@@ -597,10 +597,10 @@ function showMollyBubble(itemKey) {
   requestAnimationFrame(function() { bubble.classList.add('active'); });
   activeMolly = bubble;
 
-  // 6秒后自动消失
+  // 4-5秒后自动消失
   setTimeout(function() {
     if (activeMolly === bubble) hideMollyBubble();
-  }, 6000);
+  }, 4500);
 }
 function hideMollyBubble() {
   if (activeMolly) {
