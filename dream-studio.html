@@ -269,7 +269,7 @@ html, body {
 /* ── 返回按钮 ── */
 .back-btn {
   position: absolute;
-  top: 18px;
+  top: 62px;
   left: 18px;
   z-index: 200;
   width: 44px;
@@ -288,6 +288,27 @@ html, body {
   font-weight: bold;
   text-decoration: none;
 }
+
+/* back-hint bounce */
+.back-hint {
+  position: absolute;
+  top: 62px;
+  left: 72px;
+  z-index: 200;
+  font-size: 15px;
+  font-weight: 900;
+  color: #f5f0e0;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  letter-spacing: 1px;
+  pointer-events: none;
+  animation: bounce-hint 1.2s ease-in-out infinite;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+@keyframes bounce-hint {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
 .back-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.2);
