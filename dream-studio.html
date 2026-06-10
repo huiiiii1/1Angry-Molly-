@@ -557,12 +557,12 @@ function hideBubble() {
     setTimeout(function() {
       if (activeBubble && activeBubble.parentNode) activeBubble.remove();
       activeBubble = null;
-      // 对话框关闭后立即显示 Molly 助攻
+      // 对话框完全消失后显示 Molly 助攻
       if (item) {
         currentMollyItem = item;
         showMollyBubble(item);
       }
-    }, 350);
+    }, 400);
   }
 }
 
@@ -591,16 +591,11 @@ function showMollyBubble(itemKey) {
   bubble.style.minWidth = bW + 'px';
   bubble.style.padding = '14px 16px 26px 16px';
   bubble.style.fontSize = '14px';
-  bubble.innerHTML = '<span class="molly-label">Molly助攻：</span><span>' + text + '</span>';
+  bubble.innerHTML = '<span class="molly-label">Molly助攻：</span><span>' + text + '</span><div class="bubble-hint">— 点击任意处关闭 —</div>';
 
   bubbleOverlay.appendChild(bubble);
   requestAnimationFrame(function() { bubble.classList.add('active'); });
   activeMolly = bubble;
-
-  // 3-4秒后自动消失
-  setTimeout(function() {
-    if (activeMolly === bubble) hideMollyBubble();
-  }, 3500);
 }
 function hideMollyBubble() {
   if (activeMolly) {
@@ -660,6 +655,7 @@ container.addEventListener('click', function(e) {
 document.addEventListener('click', function(e) {
   if (!e.target.closest('#phoneContainer')) {
     hideBubble();
+    hideMollyBubble();
   }
 });
 
