@@ -648,6 +648,9 @@ function checkFinalTrigger() {
 
 // ========== 容器统一点击监听（区域判定方案）==========
 container.addEventListener('click', function(e) {
+  // Molly 助攻气泡显示时，屏蔽所有物件点击，只允许关闭气泡
+  if (activeMolly) return;
+
   var cRect = container.getBoundingClientRect();
   var relX = e.clientX - cRect.left;
   var relY = e.clientY - cRect.top;
