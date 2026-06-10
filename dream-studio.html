@@ -591,11 +591,16 @@ function showMollyBubble(itemKey) {
   bubble.style.minWidth = bW + 'px';
   bubble.style.padding = '14px 16px 26px 16px';
   bubble.style.fontSize = '14px';
-  bubble.innerHTML = '<span class="molly-label">Molly助攻：</span><span>' + text + '</span><div class="bubble-hint">— 点击任意处关闭 —</div>';
+  bubble.innerHTML = '<span class="molly-label">Molly助攻：</span><span>' + text + '</span>';
 
   bubbleOverlay.appendChild(bubble);
   requestAnimationFrame(function() { bubble.classList.add('active'); });
   activeMolly = bubble;
+
+  // 6秒后自动消失
+  setTimeout(function() {
+    if (activeMolly === bubble) hideMollyBubble();
+  }, 6000);
 }
 function hideMollyBubble() {
   if (activeMolly) {
@@ -655,7 +660,6 @@ container.addEventListener('click', function(e) {
 document.addEventListener('click', function(e) {
   if (!e.target.closest('#phoneContainer')) {
     hideBubble();
-    hideMollyBubble();
   }
 });
 
