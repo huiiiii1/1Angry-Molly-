@@ -599,7 +599,7 @@ function showMollyBubble(itemKey) {
   activeMolly = bubble;
 
   // 打字机效果
-  var typewriterEl = document.getElementById('mollyTypewriter');
+  var typewriterEl = bubble.querySelector('#mollyTypewriter');
   var i = 0;
   var typingSpeed = 60; // ms/字
   function typeNext() {
