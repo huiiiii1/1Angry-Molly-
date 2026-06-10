@@ -318,6 +318,18 @@ html, body {
   box-shadow: 0 1px 4px rgba(0,0,0,0.1);
 }
 
+/* ── Molly 助攻气泡（底部居中）── */
+.molly-bubble {
+  background: rgba(253, 248, 238, 0.97) !important;
+  border: 2px solid rgba(228, 0, 43, 0.18);
+  text-align: center;
+}
+.molly-bubble .molly-label {
+  font-weight: 900;
+  color: #c0392b;
+  display: inline;
+}
+
 /* 点击遮罩层（用于关闭气泡） */
 .close-layer {
   position: absolute;
@@ -456,7 +468,15 @@ var BUBBLE_DATA = {
   paints:  '旁人都不看好，这份热爱值得坚持吗？'
 };
 
+// ── Molly 助攻文案 ──
+var MOLLY_DATA = {
+  easel:   '我的梦想我当然要继续！',
+  brushes: '当然有天赋！不要被小挫折打倒呀！',
+  paints:  '不要在意别人的眼光，坚定的选择自己！'
+};
+
 var activeBubble = null;
+var activeMolly = null;
 var clickedSet = { easel: false, brushes: false, paints: false };
 var totalItems = 3;
 var finalShown = false;
@@ -536,6 +556,47 @@ function hideBubble() {
   }
 }
 
+// ========== Molly 助攻气泡（底部居中）==========
+function showMollyBubble(itemKey) {
+  hideMollyBubble();
+  hideBubble();
+  var text = MOLLY_DATA[itemKey];
+  if (!text) return;
+
+  var bubble = document.createElement('div');
+  bubble.className = 'wechat-bubble molly-bubble arrow-up';
+  bubble.style.zIndex = '55';
+
+  var cW = container.offsetWidth;
+  var cH = container.offsetHeight;
+  var bW = 260;
+
+  var leftPos = Math.round((cW - bW) / 2);
+  var topPos = Math.round(cH * 0.68);
+
+  bubble.style.top = topPos + 'px';
+  bubble.style.left = leftPos + 'px';
+  bubble.style.width = bW + 'px';
+  bubble.style.maxWidth = bW + 'px';
+  bubble.style.minWidth = bW + 'px';
+  bubble.style.padding = '14px 16px 26px 16px';
+  bubble.style.fontSize = '14px';
+  bubble.innerHTML = '<span class="molly-label">Molly助攻：</span><span>' + text + '</span><div class="bubble-hint">— 点击任意处关闭 —</div>';
+
+  bubbleOverlay.appendChild(bubble);
+  requestAnimationFrame(function() { bubble.classList.add('active'); });
+  activeMolly = bubble;
+}
+function hideMollyBubble() {
+  if (activeMolly) {
+    activeMolly.classList.remove('active');
+    setTimeout(function() {
+      if (activeMolly && activeMolly.parentNode) activeMolly.remove();
+      activeMolly = null;
+    }, 350);
+  }
+}
+
 // ========== 容器统一点击监听（区域判定方案）==========
 container.addEventListener('click', function(e) {
   var cRect = container.getBoundingClientRect();
@@ -557,23 +618,49 @@ container.addEventListener('click', function(e) {
 
   showBubble(hitKey);
 
-  // 检查是否全部点完
-  var count = 0;
-  for (var k in clickedSet) { if (clickedSet[k]) count++; }
-  if (count === totalItems && !finalShown) {
-    finalShown = true;
-    setTimeout(showFinalModal, 1500);
+  // ── Molly 助攻响应 ──
+  // easel: 6-7秒后显示 Molly
+  // brushes: 显示 Molly（替换默认 delay）
+  // paints: 显示 Molly → 6-7秒后弹出选择框
+  var mollyDelay = 6500; // easel 默认 6-7s
+  if (hitKey === 'brushes') mollyDelay = 500;
+  if (hitKey === 'paints') mollyDelay = 500;
+
+  var paintFinal = (hitKey === 'paints');
+
+  setTimeout(function() {
+    showMollyBubble(hitKey);
+    if (paintFinal) {
+      setTimeout(function() {
+        hideMollyBubble();
+        if (!finalShown) { finalShown = true; showFinalModal(); }
+      }, 6500);
+    }
+  }, mollyDelay);
+
+  // 检查是否全部点完（仅非 paints 路径触发）
+  if (!paintFinal) {
+    var count = 0;
+    for (var k in clickedSet) { if (clickedSet[k]) count++; }
+    if (count === totalItems && !finalShown) {
+      finalShown = true;
+      setTimeout(showFinalModal, 1500);
+    }
   }
 });
 
 // ========== 全局点击关闭气泡 ==========
 document.addEventListener('click', function(e) {
-  if (!e.target.closest('#phoneContainer')) hideBubble();
+  if (!e.target.closest('#phoneContainer')) {
+    hideBubble();
+    hideMollyBubble();
+  }
 });
 
 // ========== 最终弹窗 ==========
 function showFinalModal() {
   hideBubble();
+  hideMollyBubble();
   document.getElementById('finalModal').classList.add('show');
 }
 function selectOption(opt) {
