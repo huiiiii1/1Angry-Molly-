@@ -69,6 +69,7 @@ body {
 // ── Simple audio system ──
 var audioCtx = null;
 var endingMusicLoop = true;
+var endingLoopTimer = null;
 function getAudioCtx() {
   if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ audioCtx = null; } }
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -126,14 +127,19 @@ function soundCheerfulSong() {
   for(var b4=0;b4<8;b4++){ k(s4+b4*beat,b4%2===0?0.09:0.06); hh(s4+b4*beat+eighth,0.018); hh(s4+b4*beat+eighth*3,0.014); sn(s4+b4*beat+beat,b4%2===0?0.05:0.03); }
   k(s4+bar+eighth*6,0.12);
 
-  // Loop: re-trigger after song ends
+  // Loop: poll-based re-trigger (avoids mobile timer throttling)
   if (endingMusicLoop) {
-    setTimeout(function() {
-      if (endingMusicLoop) {
+    if (endingLoopTimer) clearInterval(endingLoopTimer);
+    var loopStart = performance.now();
+    endingLoopTimer = setInterval(function() {
+      if (!endingMusicLoop) { clearInterval(endingLoopTimer); endingLoopTimer = null; return; }
+      if (performance.now() - loopStart >= 12500) {
+        clearInterval(endingLoopTimer);
+        endingLoopTimer = null;
         getAudioCtx();
         soundCheerfulSong();
       }
-    }, 12500);
+    }, 250);
   }
 }
 function soundRestart() {
@@ -177,7 +183,7 @@ setTimeout(function() {
 }, 800);
 
 // Stop music on page leave
-window.addEventListener('beforeunload', function() { endingMusicLoop = false; });
+window.addEventListener('beforeunload', function() { endingMusicLoop = false; if (endingLoopTimer) { clearInterval(endingLoopTimer); endingLoopTimer = null; } });
 
 // ═══════════════════════════════════════════════════
 // ANGRY MOLLY - ENDING / THANKS PAGE

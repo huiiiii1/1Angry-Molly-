@@ -104,6 +104,7 @@ html, body {
 // ═══════════════════════════════════════════════════
 var audioCtx = null;
 var cheerfulLoop = false; // 唱片音乐循环标志
+var cheerfulLoopTimer = null; // 循环定时器ID
 function getAudioCtx() {
   if (!audioCtx) {
     try {
@@ -455,14 +456,19 @@ function soundAllDoneCheerful() {
   // Final big kick
   kick(s4 + bar + eighth * 6, 0.12);
 
-  // Loop: re-trigger after song ends (~13s, enough buffer for all notes)
+  // Loop: poll-based re-trigger (avoids mobile timer throttling)
   if (cheerfulLoop) {
-    setTimeout(function() {
-      if (cheerfulLoop) {
-        getAudioCtx(); // ensure context resumed
+    if (cheerfulLoopTimer) clearInterval(cheerfulLoopTimer);
+    var loopStart = performance.now();
+    cheerfulLoopTimer = setInterval(function() {
+      if (!cheerfulLoop) { clearInterval(cheerfulLoopTimer); cheerfulLoopTimer = null; return; }
+      if (performance.now() - loopStart >= 12500) {
+        clearInterval(cheerfulLoopTimer);
+        cheerfulLoopTimer = null;
+        getAudioCtx();
         soundAllDoneCheerful();
       }
-    }, 12500);
+    }, 250);
   }
 }
 
@@ -2383,7 +2389,7 @@ canvas.addEventListener('mouseup', function(e) {
 render();
 
   // Stop cheerful music loop on page unload
-  window.addEventListener('beforeunload', function() { cheerfulLoop = false; });
+  window.addEventListener('beforeunload', function() { cheerfulLoop = false; if (cheerfulLoopTimer) { clearInterval(cheerfulLoopTimer); cheerfulLoopTimer = null; } });
 </script>
 </body>
 </html>
