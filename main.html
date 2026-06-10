@@ -455,11 +455,14 @@ function soundAllDoneCheerful() {
   // Final big kick
   kick(s4 + bar + eighth * 6, 0.12);
 
-  // Loop: re-trigger after song ends (~12s)
+  // Loop: re-trigger after song ends (~13s, enough buffer for all notes)
   if (cheerfulLoop) {
     setTimeout(function() {
-      if (cheerfulLoop) soundAllDoneCheerful();
-    }, 12000);
+      if (cheerfulLoop) {
+        getAudioCtx(); // ensure context resumed
+        soundAllDoneCheerful();
+      }
+    }, 13000);
   }
 }
 
