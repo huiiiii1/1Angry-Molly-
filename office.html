@@ -714,6 +714,12 @@
             text-shadow: 0 1px 4px rgba(0,0,0,0.6);
             white-space: nowrap;
         }
+
+        /* ── 竖向引导（箭头指上/指下） ── */
+        .object-hint-col {
+            flex-direction: column;
+            gap: 2px;
+        }
         @keyframes hintPulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.45; }
@@ -755,19 +761,19 @@
     <div class="phone-frame">
 
             <!-- 物件引导提示 -->
-            <div class="object-hint" id="hint-laptop" style="top:285px; left:50%; transform:translateX(-50%);">
-                <span class="arrow">↓</span>
+            <div class="object-hint object-hint-col" id="hint-laptop" style="top:80px; left:50%; transform:translateX(-50%);">
                 <span class="hint-label">点击电脑继续吐槽</span>
-            </div>
-            <div class="object-hint" id="hint-phone" style="display:none; bottom:140px; left:50px;">
                 <span class="arrow">↓</span>
+            </div>
+            <div class="object-hint object-hint-col" id="hint-phone" style="display:none; bottom:4px; left:26px;">
+                <span class="arrow">↑</span>
                 <span class="hint-label">点击手机继续吐槽</span>
             </div>
-            <div class="object-hint" id="hint-sticky-todo" style="top:28px; left:128px;">
+            <div class="object-hint" id="hint-sticky-todo" style="top:22px; left:120px;">
                 <span class="arrow">←</span>
                 <span class="hint-label">点击看看今天的待办事项</span>
             </div>
-            <div class="object-hint" id="hint-sticky-relax" style="top:56px; left:128px;">
+            <div class="object-hint" id="hint-sticky-relax" style="top:58px; left:120px;">
                 <span class="arrow">←</span>
                 <span class="hint-label">点击放松一下</span>
             </div>
@@ -1022,17 +1028,15 @@
 
             if (name === '笔记本电脑') {
             officeHintState.laptop = true; updateHints();
-            officeHintState.laptop = true; updateHints();
                 showChoicePopup(
                     '策划案抓紧完善，下班前发我邮箱。',
-                    'Molly助攻：我不干了……',
-                    '胆小的我：好的老板……',
+                    'Molly助攻：我不干了！这工作谁想上谁上吧！',
+                    '胆小的我：好的老板，今天下班准时给你。',
                     function() { soundCelebrate(); },
                     function() { soundClick(); }
                 );
             }
             else if (name === '便利贴') {
-            officeHintState.sticky = true; updateHints();
             officeHintState.sticky = true; updateHints();
                 soundClick();
                 showTextBubble('item-sticky', '房租需缴费，核对水电账单。');
@@ -1042,7 +1046,6 @@
                 showTextBubble('item-plant', '别一直紧绷，抽空放空片刻。');
             }
             else if (name === '智能手机') {
-            officeHintState.phone = true; updateHints();
             officeHintState.phone = true; updateHints();
                 showChoicePopup(
                     '好久没回家，什么时候有空回来？',
