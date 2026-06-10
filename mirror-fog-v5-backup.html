@@ -484,6 +484,65 @@
     transform: translateY(0);
     box-shadow: 0 1px 4px rgba(0,0,0,0.15);
   }
+
+  /* ===== 教程提示遮罩 ===== */
+  .tutorial-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.65);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    transition: opacity 0.35s ease;
+  }
+  .tutorial-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .tutorial-card {
+    background: rgba(255, 248, 235, 0.96);
+    border-radius: 14px;
+    padding: 28px 24px 22px 24px;
+    width: 82vw;
+    max-width: 340px;
+    text-align: center;
+    box-shadow: 0 8px 36px rgba(0,0,0,0.4);
+    border: 2px solid rgba(228, 0, 43, 0.2);
+  }
+  .tutorial-card .tutorial-title {
+    font-size: clamp(18px, 4.5vw, 22px);
+    font-weight: 900;
+    color: #2c2418;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+  .tutorial-card .tutorial-sub {
+    font-size: clamp(14px, 3.5vw, 16px);
+    font-weight: 600;
+    color: #8a7a6a;
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+  .tutorial-btn {
+    display: inline-block;
+    padding: 10px 36px;
+    background: #E4002B;
+    color: #fff;
+    border: none;
+    border-radius: 22px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .tutorial-btn:active {
+    background: #c00022;
+    transform: scale(0.96);
+  }
 </style>
 <link rel="prefetch" href="retro_oil_bg.jpg" as="image">
 <link rel="prefetch" href="molly_avatar.png" as="image">
@@ -523,6 +582,15 @@
   <!-- 返回按钮 -->
   <a class="back-btn" href="main.html?from=subpage" title="返回">&larr;</a>
   <span class="back-hint">点我返回</span>
+
+  <!-- 教程提示遮罩 -->
+  <div class="tutorial-overlay" id="tutorialOverlay">
+    <div class="tutorial-card">
+      <div class="tutorial-title">和Molly一起用愤怒燃烧标签！</div>
+      <div class="tutorial-sub">点击文字，燃烧它。</div>
+      <button class="tutorial-btn" id="tutorialBtn" onclick="closeTutorial()">我知道了</button>
+    </div>
+  </div>
 
   <!-- 镜框 -->
   <div class="mirror-frame">
@@ -602,6 +670,11 @@
 </div>
 
 <script>
+// ── 教程提示 ──
+function closeTutorial() {
+  var overlay = document.getElementById('tutorialOverlay');
+  if (overlay) overlay.classList.add('hidden');
+}
 // ── Simple audio system ──
 var pageAudio = null;
 function getPageAudio() {
