@@ -773,9 +773,9 @@
                 <span class="arrow">←</span>
                 <span class="hint-label">点击看看今天的待办事项</span>
             </div>
-            <div class="object-hint" id="hint-sticky-relax" style="top:58px; left:120px;">
-                <span class="arrow">←</span>
+            <div class="object-hint" id="hint-plant" style="top:25px; right:115px;">
                 <span class="hint-label">点击放松一下</span>
+                <span class="arrow">→</span>
             </div>
 
         <!-- 返回按钮 -->
@@ -1009,7 +1009,7 @@
 
 
         // ── 办公室引导提示状态管理 ──
-        var officeHintState = { laptop: false, phone: false, sticky: false };
+        var officeHintState = { laptop: false, phone: false, sticky: false, plant: false };
         function updateHints() {
             // 电脑未点击 → 显示电脑提示
             document.getElementById('hint-laptop').style.display = officeHintState.laptop ? 'none' : 'flex';
@@ -1017,7 +1017,7 @@
             document.getElementById('hint-phone').style.display = (officeHintState.laptop && !officeHintState.phone) ? 'flex' : 'none';
             // 便利贴提示：点击后消失
             document.getElementById('hint-sticky-todo').style.display = officeHintState.sticky ? 'none' : 'flex';
-            document.getElementById('hint-sticky-relax').style.display = officeHintState.sticky ? 'none' : 'flex';
+            document.getElementById('hint-plant').style.display = officeHintState.plant ? 'none' : 'flex';
         }
 
         // 物件点击事件
@@ -1042,6 +1042,7 @@
                 showTextBubble('item-sticky', '房租需缴费，核对水电账单。');
             }
             else if (name === '绿植盆栽') {
+            officeHintState.plant = true; updateHints();
                 soundClick();
                 showTextBubble('item-plant', '别一直紧绷，抽空放空片刻。');
             }
