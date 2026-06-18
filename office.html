@@ -552,6 +552,37 @@
             display: flex;
         }
 
+        /* Molly 头像 */
+        .choice-molly-avatar {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            border: 2.5px solid #E4002B;
+            object-fit: cover;
+            background: #fdf8ee;
+            margin-bottom: -6px;
+            z-index: 2;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+            animation: mollyPop 0.35s ease 0.1s both;
+        }
+        @keyframes mollyPop {
+            0% { opacity: 0; transform: scale(0.5); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* 跳动提示词 */
+        .choice-hint {
+            font-size: 14px;
+            font-weight: 900;
+            color: #f5f0e0;
+            text-align: center;
+            letter-spacing: 1.5px;
+            margin-bottom: 8px;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+            animation: hintPulse 1.2s ease-in-out infinite;
+            pointer-events: none;
+        }
+
         /* 上方文案气泡 */
         .choice-bubble {
             background: #f6f2eb;
@@ -849,6 +880,10 @@
 
                 <!-- 双选弹窗 -->
                 <div class="choice-popup" id="choicePopup" onclick="event.stopPropagation()">
+                    <!-- Molly 头像 -->
+                    <img class="choice-molly-avatar" src="molly_avatar.png" alt="Molly">
+                    <!-- 跳动提示词 -->
+                    <div class="choice-hint">点击选项，做出选择。</div>
                     <div class="choice-bubble">
                         <div class="choice-text" id="choiceText"></div>
                     </div>
@@ -1039,12 +1074,12 @@
             else if (name === '便利贴') {
             officeHintState.sticky = true; updateHints();
                 soundClick();
-                showTextBubble('item-sticky', '房租需缴费，核对水电账单。');
+                showTextBubble('item-sticky', '房东：这个月的房租需要缴纳，核对一下水电账单。');
             }
             else if (name === '绿植盆栽') {
             officeHintState.plant = true; updateHints();
                 soundClick();
-                showTextBubble('item-plant', '别一直紧绷，抽空放空片刻。');
+                showTextBubble('item-plant', 'Molly：别一直紧绷，抽空放松片刻吧。');
             }
             else if (name === '智能手机') {
             officeHintState.phone = true; updateHints();
