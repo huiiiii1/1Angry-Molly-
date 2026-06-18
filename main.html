@@ -76,9 +76,30 @@ html, body {
   85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
+/* ── 图片加载遮罩 ── */
+#loadOverlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: #0A0A0A;
+  display: flex; justify-content: center; align-items: center;
+  flex-direction: column; transition: opacity 0.5s;
+}
+#loadOverlay.done { opacity: 0; pointer-events: none; }
+.load-spinner {
+  width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.2);
+  border-top-color: #E4002B; border-radius: 50%;
+  animation: loadSpin 0.8s linear infinite; margin-bottom: 16px;
+}
+@keyframes loadSpin { to { transform: rotate(360deg); } }
+.load-text { color: #f5f0e0; font-family: "YouYuan",sans-serif; font-size: 16px; }
 </style>
 </head>
 <body>
+
+<!-- 加载遮罩 -->
+<div id="loadOverlay">
+  <div class="load-spinner"></div>
+  <div class="load-text">Molly 来了…</div>
+</div>
 
 <!-- ── POP MART Logo (左上) ── -->
 <div class="pm-header">
@@ -94,6 +115,12 @@ html, body {
     <span class="pm-dot" style="background:#999;"></span>
   </span>
   <span class="pm-copyright">&copy;POP MART</span>
+</div>
+
+<!-- 预加载图片（加速渲染） -->
+<div style="position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;">
+  <img src="sticker1.png" alt=""><img src="sticker2.png" alt=""><img src="sticker3.png" alt="">
+  <img src="molly_avatar.png" alt=""><img src="retro_oil_bg.jpg" alt="">
 </div>
 
 <canvas id="canvas"></canvas>
@@ -600,15 +627,19 @@ let allImagesReady = false;
 
 function checkAllReady() {
   allImagesReady = imagesReady.bg && imagesReady.s1 && imagesReady.s2 && imagesReady.s3 && imagesReady.avatar;
+  if (allImagesReady) {
+    var overlay = document.getElementById('loadOverlay');
+    if (overlay) { overlay.classList.add('done'); setTimeout(function(){ if(overlay.parentNode) overlay.remove(); }, 600); }
+  }
 }
 
 function onImgLoad(key) {
   imagesReady[key] = true;
   checkAllReady();
   // Build masks and caches for stickers
-  if (key === 's1') { buildStickerMasks(stickerImg, 's1'); buildGrayCache('s1', stickerImg, 240); }
-  if (key === 's2') { buildStickerMasks(sticker2Img, 's2'); buildGrayCache('s2', sticker2Img, 195); }
-  if (key === 's3') { buildStickerMasks(sticker3Img, 's3'); buildGrayCache('s3', sticker3Img, 240); }
+  if (key === 's1') { buildStickerMasks(stickerImg, 's1'); buildGrayCache('s1', stickerImg, 210); }
+  if (key === 's2') { buildStickerMasks(sticker2Img, 's2'); buildGrayCache('s2', sticker2Img, 175); }
+  if (key === 's3') { buildStickerMasks(sticker3Img, 's3'); buildGrayCache('s3', sticker3Img, 210); }
   if (key === 'avatar') { buildGrayCache('avatar', mollyAvatarImg, 130); }
 }
 
@@ -631,6 +662,12 @@ sticker3Img.src = 'sticker3.png';
 mollyAvatarImg.onload = function() { onImgLoad('avatar'); };
 mollyAvatarImg.onerror = function() { console.warn('mollyAvatar load failed'); onImgLoad('avatar'); };
 mollyAvatarImg.src = 'molly_avatar.png';
+
+// Safety: hide loading overlay after 5s even if images not all loaded
+setTimeout(function() {
+  var overlay = document.getElementById('loadOverlay');
+  if (overlay) { overlay.classList.add('done'); setTimeout(function(){ if(overlay.parentNode) overlay.remove(); }, 600); }
+}, 5000);
 
 // Sticker Outline Masks (contour-following)
 const stickerMasks = {};
@@ -1447,11 +1484,11 @@ function drawVinyl(ctx, cx, cy, radius, angle) {
   }
 
   // 3 Main stickers
-  const stickerR = 380;
+  const stickerR = 310;
   const stickerDefs = [
-    { img: stickerImg, key: 's1', size: 240, rotOff: 0 },
-    { img: sticker2Img, key: 's2', size: 195, rotOff: 0 },
-    { img: sticker3Img, key: 's3', size: 240, rotOff: 0 }
+    { img: stickerImg, key: 's1', size: 210, rotOff: 0 },
+    { img: sticker2Img, key: 's2', size: 175, rotOff: 0 },
+    { img: sticker3Img, key: 's3', size: 210, rotOff: 0 }
   ];
   for (let i = 0; i < 3; i++) {
     const sa = (i / 3) * Math.PI * 2;
@@ -1903,7 +1940,7 @@ function startSpinToSticker(nextIndex) {
 // HIT TEST
 // ════════════════════════════════════════════════
 function getStickerWorldPos(i) {
-  var stickerR = 380;
+  var stickerR = 310;
   var localAngle = (i / 3) * Math.PI * 2;
   var worldAngle = localAngle + vinylAngle;
   return {
@@ -1916,7 +1953,7 @@ function checkHitSticker(px, py, i) {
   var pos = getStickerWorldPos(i);
   var dx = px - pos.x;
   var dy = py - pos.y;
-  var stickerSizes = [240, 195, 240];
+  var stickerSizes = [210, 175, 210];
   var hitRadius = stickerSizes[i] * 0.7; // increased from 0.6 for easier tapping
   return Math.sqrt(dx * dx + dy * dy) < hitRadius;
 }
