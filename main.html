@@ -637,9 +637,9 @@ function onImgLoad(key) {
   imagesReady[key] = true;
   checkAllReady();
   // Build masks and caches for stickers
-  if (key === 's1') { buildStickerMasks(stickerImg, 's1'); buildGrayCache('s1', stickerImg, 210); }
-  if (key === 's2') { buildStickerMasks(sticker2Img, 's2'); buildGrayCache('s2', sticker2Img, 175); }
-  if (key === 's3') { buildStickerMasks(sticker3Img, 's3'); buildGrayCache('s3', sticker3Img, 210); }
+  if (key === 's1') { buildStickerMasks(stickerImg, 's1'); buildGrayCache('s1', stickerImg, 240); }
+  if (key === 's2') { buildStickerMasks(sticker2Img, 's2'); buildGrayCache('s2', sticker2Img, 195); }
+  if (key === 's3') { buildStickerMasks(sticker3Img, 's3'); buildGrayCache('s3', sticker3Img, 240); }
   if (key === 'avatar') { buildGrayCache('avatar', mollyAvatarImg, 130); }
 }
 
@@ -835,7 +835,7 @@ const PHRASES = [
 ];
 
 const FINAL_PHRASE_LINE1 = '\u4f60\u503c\u5f97\u88ab\u7231';           // 你值得被爱
-const FINAL_PHRASE_LINE2 = 'molly\u6c38\u8fdc\u966a\u7740\u4f60'; // molly永远陪着你
+const FINAL_PHRASE_LINE2 = 'Molly\u6c38\u8fdc\u966a\u7740\u4f60'; // Molly永远陪着你
 
 let currentPhraseIndex = 0; // 0=initial, 1=after 1st spin
 
@@ -989,12 +989,12 @@ function drawTypewriterText(ctx, text, x, y, fontSize, fontColor, outlineWidth, 
   ctx.lineJoin = 'round';
 
   if (hasNonBoldEnglish) {
-    // Draw in parts: Chinese text bold + English ("molly") non-bold
-    var mollyIdx = text.indexOf('molly');
+    // Draw in parts: Chinese text bold + English ("Molly") non-bold
+    var mollyIdx = text.indexOf('Molly');
     if (mollyIdx >= 0) {
       // Part before "molly" — Chinese bold
       var partBefore = text.substring(0, mollyIdx);
-      var partMolly = 'molly';
+      var partMolly = 'Molly';
       var partAfter = text.substring(mollyIdx + 5);
 
       // Measure total width for centering
@@ -1016,7 +1016,7 @@ function drawTypewriterText(ctx, text, x, y, fontSize, fontColor, outlineWidth, 
       ctx.fillText(partBefore, curX + wBefore / 2, y);
       curX += wBefore;
 
-      // "molly" (non-bold)
+      // "Molly" (non-bold)
       ctx.font = fontSize + 'px "Arial", sans-serif';
       setInkStroke(ctx, outlineWidth);
       ctx.strokeText(partMolly, curX + wMolly / 2, y);
@@ -1484,11 +1484,11 @@ function drawVinyl(ctx, cx, cy, radius, angle) {
   }
 
   // 3 Main stickers
-  const stickerR = 310;
+  const stickerR = 380;
   const stickerDefs = [
-    { img: stickerImg, key: 's1', size: 210, rotOff: 0 },
-    { img: sticker2Img, key: 's2', size: 175, rotOff: 0 },
-    { img: sticker3Img, key: 's3', size: 210, rotOff: 0 }
+    { img: stickerImg, key: 's1', size: 240, rotOff: 0 },
+    { img: sticker2Img, key: 's2', size: 195, rotOff: 0 },
+    { img: sticker3Img, key: 's3', size: 240, rotOff: 0 }
   ];
   for (let i = 0; i < 3; i++) {
     const sa = (i / 3) * Math.PI * 2;
@@ -1940,7 +1940,7 @@ function startSpinToSticker(nextIndex) {
 // HIT TEST
 // ════════════════════════════════════════════════
 function getStickerWorldPos(i) {
-  var stickerR = 310;
+  var stickerR = 380;
   var localAngle = (i / 3) * Math.PI * 2;
   var worldAngle = localAngle + vinylAngle;
   return {
@@ -1953,7 +1953,7 @@ function checkHitSticker(px, py, i) {
   var pos = getStickerWorldPos(i);
   var dx = px - pos.x;
   var dy = py - pos.y;
-  var stickerSizes = [210, 175, 210];
+  var stickerSizes = [240, 195, 240];
   var hitRadius = stickerSizes[i] * 0.7; // increased from 0.6 for easier tapping
   return Math.sqrt(dx * dx + dy * dy) < hitRadius;
 }
